@@ -4,12 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "windchill-api-lookup"
-version = "0.2.0"
+version = "0.3.0"
 description = "Local PTC Windchill Javadoc API lookup tool"
 requires-python = ">=3.11"
 dependencies = [
     "beautifulsoup4",
     "lxml",
+    "mcp>=2.2,<3",
 ]
 
 [project.optional-dependencies]

@@ -2,7 +2,6 @@
 
 import argparse
 import json
-import os
 import sys
 from dataclasses import asdict
 from pathlib import Path
@@ -12,7 +11,9 @@ from windchill_api_lookup.errors import ApiLookupError
 from windchill_api_lookup.indexer import build_index
 from windchill_api_lookup.parser.archive import ScanReport, scan_javadoc
 from windchill_api_lookup.parser.ptc_javadoc import parse_class_metadata, parse_methods, read_class_html
-from windchill_api_lookup.repository import Repository, list_versions
+from windchill_api_lookup.repository import Repository
+from windchill_api_lookup.queries import Queries, default_home
+from windchill_api_lookup.responses import failure, success
 
 EXIT_CODES = {
     "INVALID_ARGUMENT": 2, "NOT_FOUND": 3, "VERSION_NOT_INSTALLED": 4,
@@ -29,10 +30,10 @@ class ArgumentParser(argparse.ArgumentParser):
 def _parser() -> ArgumentParser:
     parser = ArgumentParser(description="查询本地 Windchill Javadoc API 索引")
     commands = parser.add_subparsers(dest="command", required=True)
-    for name in ("scan-javadoc", "add-javadoc", "versions", "get-class", "search-method", "get-method", "index-report"):
+    for name in ("scan-javadoc", "add-javadoc", "versions", "get-class", "search-method", "get-method", "get-index-status", "index-report"):
         command = commands.add_parser(name)
         command.add_argument("--json", action="store_true", help="输出结构化 JSON")
-        command.add_argument("--home", default=os.environ.get("WINDCHILL_API_HOME", str(Path.home() / ".windchill-ai")),
+        command.add_argument("--home", default=default_home(),
                              help="数据根目录，索引位于其 api-index 子目录")
         if name in {"scan-javadoc", "add-javadoc"}:
             command.add_argument("--zip", required=True, dest="zip_path")
@@ -46,6 +47,8 @@ def _parser() -> ArgumentParser:
             command.add_argument("method_name", nargs="?", help="精确名称；省略时列出本页全部方法")
         if name == "get-method":
             command.add_argument("javadoc_id", help="原始重载锚点，含括号时请加引号")
+    serve = commands.add_parser("serve", help="启动只读 stdio MCP 服务")
+    serve.add_argument("--home", default=default_home(), help="本地索引数据根目录")
     return parser
 
 
@@ -62,17 +65,18 @@ def _run(args) -> dict:
         return {"report": asdict(report)}
     if args.command == "add-javadoc":
         return build_index(args.zip_path, args.version, args.home, args.replace)
+    queries = Queries(args.home)
     if args.command == "versions":
-        return {"versions": list_versions(args.home)}
-    repository = Repository(args.home, args.version)
+        return queries.list_versions()
+    if args.command == "get-index-status":
+        return queries.get_index_status(args.version)
     if args.command == "index-report":
-        return {"version": args.version, "report": repository.report()}
-    return repository.query(
-        args.qualified_name,
-        include_methods=args.command != "get-class",
-        name=getattr(args, "method_name", None),
-        javadoc_id=getattr(args, "javadoc_id", None),
-    )
+        return {"version": args.version, "report": Repository(args.home, args.version).report()}
+    if args.command == "get-class":
+        return queries.get_class(args.version, args.qualified_name)
+    if args.command == "search-method":
+        return queries.search_method(args.version, args.qualified_name, args.method_name)
+    return queries.get_method(args.version, args.qualified_name, args.javadoc_id)
 
 
 def _legacy(argv: list[str]) -> None:
@@ -104,14 +108,18 @@ def main(argv: list[str] | None = None) -> int:
             _legacy(argv)
             return 0
         args = _parser().parse_args(argv)
+        if args.command == "serve":
+            from windchill_api_lookup.server import create_server
+            create_server(args.home).run(transport="stdio")
+            return 0
         result = _run(args)
         # Human output is formatted JSON in v1, with a stable machine envelope.
-        print(json.dumps({"ok": True, **result}, ensure_ascii=False, indent=None if args.json else 2))
+        print(json.dumps(success(result), ensure_ascii=False, indent=None if args.json else 2))
         return 0
     except (ApiLookupError, OSError, BadZipFile, ValueError) as exc:
         if not isinstance(exc, ApiLookupError):
             exc = ApiLookupError("PARSE_FAILED" if isinstance(exc, (ValueError, BadZipFile)) else "INDEX_UNAVAILABLE", str(exc))
-        print(json.dumps({"ok": False, "error": {"code": exc.code, "message": str(exc), "details": exc.details}},
+        print(json.dumps(failure(exc),
                          ensure_ascii=False), file=sys.stderr)
         return EXIT_CODES[exc.code]
 

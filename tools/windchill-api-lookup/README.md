@@ -105,4 +105,71 @@ WINDCHILL_JAVADOC_ZIP=/path/to/WindchillJavadoc_13_1_2_0.zip python -m pytest -q
 隔离和 CLI 错误契约测试仍运行。设置 ZIP 后还会全量构建并验证典型类、嵌套类、
 注解成员及 `checkout` 七个重载的数据库往返结果。该基线针对 13.1.2.0。
 
-当前尚未实现 MCP、继承方法展开、结构化 Java 类型解析和跨平台可执行文件打包。
+当前尚未实现继承方法展开、结构化 Java 类型解析和跨平台可执行文件打包。
+
+
+## v0.3：只读 MCP
+
+`serve` 使用官方 [MCP Python SDK v2](https://py.sdk.modelcontextprotocol.io/)
+提供 stdio 服务；依赖范围为 `mcp>=2.2,<3`。CLI 与 MCP 共用 `Queries` 和
+Repository，MCP 不访问 SQLite 底层或解析 Javadoc，也不导入或替换索引。
+索引 parser 版本仍为 `0.2.0`，已有 schema v1 数据可以直接查询，无需重建。
+
+```bash
+windchill-api-lookup serve --home /path/to/data
+```
+
+服务启动后等待 MCP 请求；stdout 仅用于协议，不打印 CLI 成功 envelope。
+程序日志写 stderr。退出客户端会关闭其启动的服务进程。
+
+仅提供以下五个工具，均声明只读；数据根目录在进程启动时固定，工具参数中不含路径：
+
+| Tool | 参数 | 语义 |
+| --- | --- | --- |
+| `list_versions` | 无 | 列出已有版本及不可用状态 |
+| `get_class` | `version`, `qualified_name` | 完整类名精确查询 |
+| `search_method` | `version`, `qualified_name`, 可选 `method_name` | 精确名称的全部重载；省略则返回本页方法 |
+| `get_method` | `version`, `qualified_name`, `javadoc_id` | 原始锚点对应的具体重载 |
+| `get_index_status` | `version` | 存储的构建状态、来源校验值、schema/parser 版本和统计 |
+
+`get_index_status` 不执行实时完整性扫描，也不重新校验原始 ZIP；损坏或不兼容的
+索引在读取失败时返回 `INDEX_UNAVAILABLE`。对应 CLI 命令是 `get-index-status`。
+
+MCP 的 `structuredContent` 和文本 `content` 保存同一份 CLI JSON envelope：
+成功为 `{"ok": true, ...}`，业务失败为 `{"ok": false, "error": {"code": ..., "message": ..., "details": ...}}`。
+业务失败同时设置 MCP `isError: true`。参数缺失、类型不符合工具 schema 或未知工具
+由 SDK 按 MCP 协议处理。`get_method` 继续使用单项 `methods` 数组，保持与 CLI 一致。
+
+## Qoder 插件配置
+
+仓库根目录的 `mcp.json` 已配置 `windchill-api-lookup serve`，插件清单通过
+`"mcpServers": "./mcp.json"` 引用它。配置格式依据
+[Qoder CN 官方插件文档](https://docs.qoder.cn/qoder-plugins)。
+
+先在准备使用的 Python 环境安装 v0.3，然后通过 CLI 导入 Javadoc。默认数据根目录
+是 `~/.windchill-ai`；此前 `/tmp` 下的验证索引不是自动安装到该目录的正式索引。
+
+GUI 启动的 Qoder 不一定能找到已激活虚拟环境中的命令。如果提示找不到程序，
+将已安装插件配置中的 `command` 改成该虚拟环境内可执行文件的绝对路径，例如：
+
+```json
+{
+  "mcpServers": {
+    "windchill-api-lookup": {
+      "command": "/absolute/path/to/venv/bin/windchill-api-lookup",
+      "args": ["serve"],
+      "env": {
+        "WINDCHILL_API_HOME": "/absolute/path/to/data"
+      }
+    }
+  }
+}
+```
+
+`WINDCHILL_API_HOME` 指向包含 `api-index` 的数据根目录，不指向 ZIP 或单个数据库。
+Javadoc 位置仅通过 `add-javadoc --zip` 指定，MCP 配置无需保存它。
+每次查询显式传入项目的 Windchill 版本，缺失时不自动跨版本回退。
+
+将更新后的插件安装到 Qoder 并重新加载后，应能发现恰好五个工具。首次验收查询
+`WTPart`、`checkout` 重载、不存在的类和未安装版本。仓库源码修改不会自动更新
+客户端已安装的插件副本。协议测试覆盖现代及 legacy 握手，真实 Qoder UI 连接仍需在客户端验证。

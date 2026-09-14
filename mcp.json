@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "windchill-api-lookup": {
+      "command": "windchill-api-lookup",
+      "args": ["serve"]
+    }
+  }
+}
