@@ -1,2 +1,0 @@
-[console_scripts]
-windchill-api-lookup = windchill_api_lookup.cli:main

@@ -1,6 +1,10 @@
-from bs4 import BeautifulSoup
+import re
 from pathlib import Path
 from zipfile import ZipFile
+
+from bs4 import BeautifulSoup
+
+from windchill_api_lookup.models import ApiClass, ApiMethod
 
 
 def read_class_html(
@@ -28,21 +32,31 @@ def read_class_html(
             f"指定路径不是文件: {zip_file_path}"
         )
 
-    class_path = qualified_class_name.replace(".", "/")
-    html_path = f"Javadoc/{class_path}.html"
+    parts = qualified_class_name.split(".")
 
     with ZipFile(zip_file_path, "r") as zip_file:
-        try:
-            content = zip_file.read(html_path)
-        except KeyError as exc:
+        # Javadoc 将嵌套类写成 package/Outer.Inner.html。
+        candidates = [
+            "Javadoc/" + "/".join(parts[:index] + [".".join(parts[index:])]) + ".html"
+            for index in range(len(parts) - 1, -1, -1)
+        ]
+        archive_paths = set(zip_file.namelist())
+        matches = [path for path in candidates if path in archive_paths]
+        if not matches:
             raise ValueError(
                 f"在 Javadoc 中没有找到 Class: "
                 f"{qualified_class_name}"
-            ) from exc
+            )
+        if len(matches) > 1:
+            raise ValueError(f"Javadoc Class 路径不唯一: {qualified_class_name}")
+        content = zip_file.read(matches[0])
 
     return content.decode("utf-8", errors="replace")
 
-def parse_class_metadata(html: str) -> dict:
+def parse_class_metadata(
+    html: str,
+    qualified_class_name: str,
+) -> ApiClass:
     soup = BeautifulSoup(html, "lxml")
 
     title_element = soup.select_one("h1.title")
@@ -51,11 +65,6 @@ def parse_class_metadata(html: str) -> dict:
         raise ValueError(
             "无法在 Javadoc HTML 中找到 Class Title"
         )
-
-    title = title_element.get_text(
-        " ",
-        strip=True,
-    )
 
     package_element = soup.select_one(
         ".package-label-in-type"
@@ -84,6 +93,18 @@ def parse_class_metadata(html: str) -> dict:
             "无法在 Javadoc HTML 中找到 Class Description"
         )
 
+    # 包名来自 HTML；不能用 rsplit('.') 推导，否则会误判嵌套类。
+    prefix = f"{package_name}."
+    if not qualified_class_name.startswith(prefix):
+        raise ValueError("指定 Class 与 Javadoc Package 不匹配")
+    class_name = qualified_class_name[len(prefix):]
+    type_name_element = class_description.select_one(".type-name-label")
+    if type_name_element is None:
+        raise ValueError("无法在 Javadoc HTML 中找到 Class Name")
+    type_name = type_name_element.get_text(" ", strip=True).split("<", 1)[0].strip()
+    if class_name != type_name:
+        raise ValueError("指定 Class 与 Javadoc Class Name 不匹配")
+
     block = class_description.select_one(
         "div.block"
     )
@@ -106,13 +127,15 @@ def parse_class_metadata(html: str) -> dict:
         "Extendable",
     )
 
-    return {
-        "title": title,
-        "package": package_name,
-        "description": description,
-        "supported": supported,
-        "extendable": extendable,
-    }
+    return ApiClass(
+        qualified_name=qualified_class_name,
+        package_name=package_name,
+        class_name=class_name,
+        supported=supported,
+        extendable=extendable,
+        deprecated=class_description.select_one(".deprecation-block") is not None,
+        description=description,
+    )
 
 def parse_boolean_metadata(
     text: str,
@@ -126,25 +149,23 @@ def parse_boolean_metadata(
         Extendable: false
     """
 
-    normalized_text = " ".join(
-        text.split()
-    )
-
-    true_value = f"{label}: true"
-    false_value = f"{label}: false"
-
-    if true_value in normalized_text:
-        return True
-
-    if false_value in normalized_text:
-        return False
-
-    return None
+    # 缺失和冲突均保留为未知，避免把 trueValue 之类的文本当成 true。
+    values = {
+        match.lower()
+        for match in re.findall(
+            rf"(?<!\w){re.escape(label)}\s*:\s*(true|false)\b",
+            " ".join(text.split()),
+            flags=re.IGNORECASE,
+        )
+    }
+    if len(values) != 1:
+        return None
+    return values.pop() == "true"
 
 def parse_methods(
     html: str,
     method_name: str | None = None,
-) -> list[dict]:
+) -> list[ApiMethod]:
     """
     解析 Javadoc Class 页面中的 Method Detail。
 
@@ -154,9 +175,10 @@ def parse_methods(
 
     soup = BeautifulSoup(html, "lxml")
 
-    methods = []
+    methods: list[ApiMethod] = []
 
-    for section in soup.select("section.detail"):
+    # 字段和构造器也使用 section.detail，必须限制在 Method Details 内。
+    for section in soup.select("section.method-details section.detail"):
         name_element = section.select_one(
             "span.element-name"
         )
@@ -177,7 +199,11 @@ def parse_methods(
         )
 
         if signature_element is None:
-            continue
+            raise ValueError(f"Method 缺少 Signature: {name}")
+
+        javadoc_id = section.get("id")
+        if not isinstance(javadoc_id, str) or not javadoc_id.strip():
+            raise ValueError(f"Method 缺少 Javadoc ID: {name}")
 
         return_type_element = section.select_one(
             "span.return-type"
@@ -214,13 +240,12 @@ def parse_methods(
         throws = []
 
         if exceptions_element is not None:
-            for exception_link in exceptions_element.select("a"):
-                exception_name = exception_link.get_text(
-                    " ",
-                    strip=True,
-                )
-
-                throws.append(exception_name)
+            # 部分异常类型只有纯文本，没有 <a> 链接。
+            throws = [
+                exception.strip()
+                for exception in exceptions_element.get_text("", strip=False).split(",")
+                if exception.strip()
+            ]
 
         description = ""
 
@@ -243,20 +268,20 @@ def parse_methods(
         )
 
         methods.append(
-            {
-                "name": name,
-                "javadoc_id": section.get("id"),
-                "signature": signature_element.get_text(
+            ApiMethod(
+                name=name,
+                javadoc_id=javadoc_id,
+                signature=signature_element.get_text(
                     " ",
                     strip=True,
                 ),
-                "return_type": return_type,
-                "parameters": parameters,
-                "throws": throws,
-                "supported": supported,
-                "deprecated": deprecated,
-                "description": description,
-            }
+                return_type=return_type,
+                parameters=parameters,
+                throws=throws,
+                supported=supported,
+                deprecated=deprecated,
+                description=description,
+            )
         )
 
     return methods

@@ -38,11 +38,14 @@ def test_wtpart_metadata(javadoc_zip):
         "wt.part.WTPart",
     )
 
-    metadata = parse_class_metadata(html)
+    metadata = parse_class_metadata(html, "wt.part.WTPart")
 
-    assert metadata["package"] == "wt.part"
-    assert metadata["supported"] is True
-    assert metadata["extendable"] is True
+    assert metadata.qualified_name == "wt.part.WTPart"
+    assert metadata.package_name == "wt.part"
+    assert metadata.class_name == "WTPart"
+    assert metadata.supported is True
+    assert metadata.extendable is True
+    assert metadata.deprecated is False
 
 
 def test_work_in_progress_helper_metadata(
@@ -53,11 +56,11 @@ def test_work_in_progress_helper_metadata(
         "wt.vc.wip.WorkInProgressHelper",
     )
 
-    metadata = parse_class_metadata(html)
+    metadata = parse_class_metadata(html, "wt.vc.wip.WorkInProgressHelper")
 
-    assert metadata["package"] == "wt.vc.wip"
-    assert metadata["supported"] is True
-    assert metadata["extendable"] is False
+    assert metadata.package_name == "wt.vc.wip"
+    assert metadata.supported is True
+    assert metadata.extendable is False
 
 
 def test_checkout_overloads(javadoc_zip):
@@ -75,22 +78,32 @@ def test_checkout_overloads(javadoc_zip):
 
     first = methods[0]
 
-    assert first["name"] == "checkout"
+    assert first.name == "checkout"
 
-    assert first["javadoc_id"] == (
+    assert first.javadoc_id == (
         "checkout("
         "wt.vc.wip.Workable,"
         "wt.folder.Folder,"
         "java.lang.String)"
     )
 
-    assert first["return_type"] == "CheckoutLink"
-    assert first["supported"] is True
-    assert first["deprecated"] is False
+    assert first.return_type == "CheckoutLink"
+    assert first.supported is True
+    assert first.deprecated is False
 
-    assert "WTException" in first["throws"]
+    assert "WTException" in first.throws
 
     assert (
         "WorkInProgressException"
-        in first["throws"]
+        in first.throws
     )
+
+def test_class_not_found(javadoc_zip):
+    with pytest.raises(
+        ValueError,
+        match="没有找到 Class",
+    ):
+        read_class_html(
+            javadoc_zip,
+            "wt.foo.ThisClassDoesNotExist",
+        )

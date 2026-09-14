@@ -27,15 +27,16 @@ def main():
     )
 
     if len(sys.argv) == 3:
-        metadata = parse_class_metadata(html)
+        metadata = parse_class_metadata(html, qualified_class_name)
 
         print("Class Metadata")
         print("----------------")
         print(f"Class:      {qualified_class_name}")
-        print(f"Title:      {metadata['title']}")
-        print(f"Package:    {metadata['package']}")
-        print(f"Supported:  {metadata['supported']}")
-        print(f"Extendable: {metadata['extendable']}")
+        print(f"Name:       {metadata.class_name}")
+        print(f"Package:    {metadata.package_name}")
+        print(f"Supported:  {metadata.supported}")
+        print(f"Extendable: {metadata.extendable}")
+        print(f"Deprecated: {metadata.deprecated}")
 
         return
 
@@ -62,21 +63,25 @@ def main():
     ):
         print(f"[{index}]")
         print(
-            f"ID:         {method['javadoc_id']}"
+            f"ID:         {method.javadoc_id}"
         )
         print(
-            f"Signature:  {method['signature']}"
+            f"Signature:  {method.signature}"
         )
         print(
-            f"Return:     {method['return_type']}"
+            f"Return:     {method.return_type}"
         )
         print(
-            f"Supported:  {method['supported']}"
+            f"Supported:  {method.supported}"
         )
         print(
-            f"Deprecated: {method['deprecated']}"
+            f"Deprecated: {method.deprecated}"
         )
         print(
-            f"Throws:     {', '.join(method['throws'])}"
+            f"Throws:     {', '.join(method.throws)}"
         )
         print()
+
+
+if __name__ == "__main__":
+    main()
