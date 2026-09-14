@@ -12,6 +12,8 @@ class ApiClass:
     deprecated: bool
 
     description: str = ""
+    class_kind: str = "class"
+    source_path: str = ""
 
 
 @dataclass
