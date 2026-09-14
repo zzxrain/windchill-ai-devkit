@@ -1,0 +1,9 @@
+Metadata-Version: 2.4
+Name: windchill-api-lookup
+Version: 0.1.0
+Summary: Local PTC Windchill Javadoc API lookup tool
+Requires-Python: >=3.11
+Requires-Dist: beautifulsoup4
+Requires-Dist: lxml
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"

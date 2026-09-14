@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "windchill-api-lookup"
+version = "0.1.0"
+description = "Local PTC Windchill Javadoc API lookup tool"
+requires-python = ">=3.11"
+dependencies = [
+    "beautifulsoup4",
+    "lxml",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+]
+
+[project.scripts]
+windchill-api-lookup = "windchill_api_lookup.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
