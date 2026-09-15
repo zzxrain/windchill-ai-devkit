@@ -1,6 +1,6 @@
 ---
 trigger: model_decision
-description: 当任务涉及 Windchill Property、XCONF、xconfmanager、site.xconf、declarations.xconf、wt.properties、Safe Area、wtSafeArea、PTC 标准文件或环境配置时应用本规则。
+description: 当任务涉及 Windchill Property、XCONF、xconfmanager、site.xconf、declarations.xconf、wt.properties、Safe Area、wtSafeArea、PTC 标准文件、环境配置或 DEV/UAT/PROD 配置差异时应用本规则。
 ---
 
 # Windchill 配置与定制文件规则
@@ -115,62 +115,13 @@ Maintenance Update 后，应能够比较项目修改与 PTC 新版本变化。
 - 用户名
 - Password / Token / Secret
 
-不同 DEV / TEST / PROD 环境应能够通过配置进行调整，而不需要重新修改业务代码。
+DEV、TEST、UAT、PROD 等环境之间的差异，应通过配置或部署机制提供，而不是通过修改业务源码实现。
 
-Secret 不得因为“也是配置项”就直接提交到普通源码仓库。
+不得为了适配不同环境，在业务代码中散布类似：
 
----
-
-## 8. 不得凭空生成 Windchill Property 或配置文件位置
-
-不得仅根据命名习惯猜测：
-
-- Property Name
-- XCONF Target File
-- XML 节点
-- 配置目录
-- 重启要求
-- 配置传播命令
-
-这些都属于版本敏感的 Windchill 产品事实。
-
-应优先通过：
-
-- 目标版本 PTC 文档
-- 企业知识库
-- 当前项目已有配置
-- Javadoc / 相关官方说明
-
-验证。
-
-无法确认时，应明确标记未验证状态。
-
----
-
-## 9. 配置修改必须考虑升级和部署影响
-
-修改 Windchill 配置或标准文件时，应考虑：
-
-- Maintenance Update 是否会覆盖
-- Upgrade 是否会改变 Property 或文件结构
-- 是否需要重新传播配置
-- 是否需要重建相关产物
-- 是否需要重启相关服务
-
-不得因为本地直接修改后立即生效，就认为该方式适合正式项目部署。
-
----
-
-## 10. 配置行为无法确认时必须明确验证
-
-以下内容如果当前 Agent 无法从目标版本资料或项目上下文确认，应标记：
-
-`待 Windchill 环境验证`
-
-尤其包括：
-
-- Property 是否实际生效
-- XCONF 是否正确传播
-- 服务是否需要重启
-- Safe Area 是否正确部署
-- Maintenance Update 后是否可以保留定制
+```java
+if (isProd) {
+    ...
+} else {
+    ...
+}
