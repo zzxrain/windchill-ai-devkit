@@ -56,8 +56,15 @@ CREATE INDEX api_method_name_idx ON api_method(class_id, name);
 
 
 def validate_version(version: str) -> str:
-    if not re.fullmatch(r"[0-9]+(?:\.[0-9]+){1,3}", version):
-        raise ApiLookupError("INVALID_ARGUMENT", "版本必须为数字点分格式，例如 13.1.2.0")
+    # Windchill traditionally uses numeric dot-separated versions such as
+    # 13.1.2.0, while future releases may use a year identifier such as 2027.
+    # Treat the value as a project-supplied release identifier; never infer it
+    # from the Javadoc filename.
+    if not re.fullmatch(r"(?:[0-9]{4}|[0-9]+(?:\.[0-9]+){1,3})", version):
+        raise ApiLookupError(
+            "INVALID_ARGUMENT",
+            "版本必须为安全的数字版本标识，例如 13.1.2.0、2027 或 2027.1",
+        )
     return version
 
 

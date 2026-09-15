@@ -128,6 +128,7 @@ API Lookup 回答：
 
 - Windchill Version
 - Java Version
+- PTC Javadoc ZIP
 - XWorks Enabled
 - Build Command
 - Environment Topology
@@ -269,6 +270,7 @@ templates/AGENTS.md
 
 - Windchill Version
 - Java Version
+- PTC Javadoc ZIP
 - XWorks Enabled
 - XWorks Version
 - Custom Package Root
@@ -343,7 +345,80 @@ Router 不应：
 
 ---
 
-## 10. Windchill API Lookup
+## 10. Project Javadoc Configuration
+
+每个 Windchill 项目通常只对应一个目标 Windchill Version。
+
+因此项目只需要声明：
+
+```text
+Windchill Version
++
+一个 Javadoc ZIP
+```
+
+推荐将 Javadoc 放在项目本地目录：
+
+```text
+customer-project/
+├── AGENTS.md
+├── src/
+└── .windchill-ai/
+    └── javadoc/
+        └── WindchillJavadoc.zip
+```
+
+然后在项目：
+
+```text
+AGENTS.md
+```
+
+配置：
+
+```markdown
+- Windchill Version: `13.1.2.0`
+
+### PTC Javadoc
+
+- Javadoc ZIP: `.windchill-ai/javadoc/WindchillJavadoc.zip`
+```
+
+未来年份版本也可以：
+
+```markdown
+- Windchill Version: `2027`
+
+### PTC Javadoc
+
+- Javadoc ZIP: `.windchill-ai/javadoc/WindchillJavadoc.zip`
+```
+
+Javadoc ZIP 文件名不要求包含版本号。
+
+Windchill Version 来自 `AGENTS.md`，不得从 Javadoc 文件名推断。
+
+项目 `.gitignore` 应包含：
+
+```gitignore
+.windchill-ai/
+```
+
+PTC Javadoc ZIP 不应提交到客户项目 Repository。
+
+也可以将 Javadoc 放在项目目录之外，例如：
+
+```text
+/Users/user/ptc-javadoc/WindchillJavadoc.zip
+```
+
+然后在 `AGENTS.md` 中配置该路径。
+
+推荐项目相对路径，因为更容易形成统一的团队约定。
+
+---
+
+## 11. Windchill API Lookup
 
 目录：
 
@@ -351,7 +426,7 @@ Router 不应：
 tools/windchill-api-lookup
 ```
 
-API Lookup 从本地 PTC Windchill Javadoc ZIP 构建版本隔离的 SQLite Index。
+API Lookup 从项目配置的 PTC Windchill Javadoc ZIP 构建版本隔离的 SQLite Index。
 
 默认数据目录：
 
@@ -364,23 +439,73 @@ API Lookup 从本地 PTC Windchill Javadoc ZIP 构建版本隔离的 SQLite Inde
 ```text
 ~/.windchill-ai/
 └── api-index/
-    └── 13.1.2.0/
+    ├── 13.1.2.0/
+    │   └── api.sqlite
+    └── 2027/
         └── api.sqlite
 ```
 
 索引文件和 PTC Javadoc 不进入 Git Repository。
 
-当前 Parser 和真实数据验证基线主要针对：
+一个项目通常只查询一个 Windchill Version。
 
-```text
-Windchill 13.1.2.0
-```
-
-其他 Windchill 版本需要单独实测，不应自动假设兼容。
+本机可以因为不同项目同时拥有多个版本 Index。
 
 ---
 
-## 11. Install API Lookup
+## 12. Automatic Javadoc Index
+
+v0.4 提供 MCP Tool：
+
+```text
+ensure_javadoc_index
+```
+
+当 Agent 需要精确 PTC API 时：
+
+```text
+Read AGENTS.md
+        ↓
+Read Windchill Version
+        ↓
+Read Javadoc ZIP
+        ↓
+Resolve ZIP to absolute path
+        ↓
+ensure_javadoc_index
+        ↓
+API Query
+```
+
+首次使用某版本：
+
+```text
+Javadoc ZIP
+     ↓
+Parse
+     ↓
+SQLite
+```
+
+后续相同版本和相同 Source：
+
+```text
+reused: true
+```
+
+不会重复构建。
+
+如果同版本出现不同 Javadoc Source：
+
+```text
+INDEX_CONFLICT
+```
+
+不会由 Agent 自动覆盖。
+
+---
+
+## 13. Install API Lookup
 
 Python 要求：
 
@@ -419,18 +544,18 @@ python -m venv %USERPROFILE%\.windchill-ai\venv
 
 ---
 
-## 12. Import PTC Javadoc
+## 14. Manual Javadoc Import
 
-PTC Windchill Javadoc ZIP 不进入本 Repository。
+通常不需要开发人员手工导入 Javadoc。
 
-开发人员应使用自己合法获得的目标版本 Javadoc 建立本地索引。
+自动索引失败或需要诊断时，可以使用 CLI。
 
 示例：
 
 ```bash
 windchill-api-lookup add-javadoc \
   --version 13.1.2.0 \
-  --zip /path/to/WindchillJavadoc_13_1_2_0.zip
+  --zip /path/to/WindchillJavadoc.zip
 ```
 
 查看已安装版本：
@@ -441,10 +566,10 @@ windchill-api-lookup versions
 
 API Lookup 不进行跨版本自动 fallback。
 
-例如当前项目为：
+例如当前项目：
 
 ```text
-Windchill 13.0.2.0
+Windchill Version = 13.0.2.0
 ```
 
 但本机只有：
@@ -457,7 +582,7 @@ Windchill 13.0.2.0
 
 ---
 
-## 13. MCP
+## 15. MCP
 
 根目录：
 
@@ -499,17 +624,18 @@ C:\Users\<user>\.windchill-ai\venv\Scripts\windchill-api-lookup.exe
 
 ---
 
-## 14. API Lookup MCP Capabilities
+## 16. API Lookup MCP Capabilities
 
-当前 MCP 提供以下只读能力：
+当前 MCP 提供：
 
-```text
-list_versions
-get_class
-search_method
-get_method
-get_index_status
-```
+| Tool | Type | Purpose |
+|---|---|---|
+| `ensure_javadoc_index` | Local cache write | 自动准备当前项目 Javadoc Index |
+| `list_versions` | Read-only | 查看本地已有版本 |
+| `get_class` | Read-only | Class 精确查询 |
+| `search_method` | Read-only | Method / Overload 查询 |
+| `get_method` | Read-only | 精确重载查询 |
+| `get_index_status` | Read-only | Index Metadata |
 
 API Lookup 可以证明 Javadoc 中的 API Fact，但不能证明：
 
@@ -523,7 +649,41 @@ API Lookup 可以证明 Javadoc 中的 API Fact，但不能证明：
 
 ---
 
-## 15. Golden Reference
+## 17. Javadoc Parser Compatibility
+
+当前 Parser 和真实数据验证基线主要针对：
+
+```text
+Windchill 13.1.2.0
+```
+
+v0.4 允许项目使用：
+
+```text
+13.x
+2027
+未来数字版本标识
+```
+
+作为独立 Version Key。
+
+但是：
+
+> Version Naming 支持
+
+和：
+
+> Javadoc HTML Layout 已验证兼容
+
+是两件不同的事情。
+
+如果某历史或未来版本 Javadoc HTML Layout 与当前 Parser 不兼容，Index Build 会失败，而不是静默生成不完整数据。
+
+因此后续需要使用公司实际使用的 Windchill Javadoc 版本逐一做 Parser Compatibility Test。
+
+---
+
+## 18. Golden Reference
 
 Golden Reference 当前为后续核心建设项。
 
@@ -565,7 +725,7 @@ Golden Reference 应只包含企业审核通过的高质量样例。
 
 ---
 
-## 16. Golden Reference Versioning
+## 19. Golden Reference Versioning
 
 Golden Reference Repository 应独立维护和 Review。
 
@@ -595,7 +755,7 @@ DevKit Release
 
 ---
 
-## 17. Environment Isolation
+## 20. Environment Isolation
 
 DEV、TEST、UAT、PROD 的环境差异必须通过配置或部署机制管理。
 
@@ -618,7 +778,7 @@ DEV、TEST、UAT、PROD 的环境差异必须通过配置或部署机制管理�
 
 ---
 
-## 18. Recommended Agent Workflow
+## 21. Recommended Agent Workflow
 
 Windchill Coding Task 推荐流程：
 
@@ -638,6 +798,8 @@ Need Approved Pattern?
         └── Golden Reference
         ↓
 Need Exact PTC API?
+        │
+        ├── ensure_javadoc_index
         └── API Lookup
         ↓
 Implement Minimum Necessary Change
@@ -655,7 +817,7 @@ Agent 不应为了展示工具能力而调用全部知识源。
 
 ---
 
-## 19. Verification Policy
+## 22. Verification Policy
 
 Agent 只能声明实际执行过的验证。
 
@@ -694,7 +856,7 @@ Windchill verified
 
 ---
 
-## 20. Repository Security
+## 23. Repository Security
 
 禁止提交：
 
@@ -715,7 +877,7 @@ Windchill verified
 
 ---
 
-## 21. Recommended `.gitignore`
+## 24. Recommended `.gitignore`
 
 建议至少包含：
 
@@ -741,7 +903,7 @@ WindchillJavadoc*.zip
 
 ---
 
-## 22. Internal Pilot
+## 25. Internal Pilot
 
 进入公司内部 Pilot 前，建议准备一组固定 Acceptance Cases，例如：
 
@@ -788,7 +950,7 @@ Qoder with Windchill AI DevKit
 
 ---
 
-## 23. Extension Strategy
+## 26. Extension Strategy
 
 实际项目出现问题时，应先判断应该增强哪一层。
 
@@ -836,7 +998,7 @@ Qoder with Windchill AI DevKit
 
 ---
 
-## 24. Scope Control
+## 27. Scope Control
 
 初版 DevKit 不追求：
 
@@ -865,13 +1027,14 @@ Real Verification
 
 ---
 
-## 25. Long-Term Direction
+## 28. Long-Term Direction
 
 内部 Pilot 稳定以后，再根据真实收益评估：
 
 - Golden Reference Repository
 - Golden Reference Skill
 - Windchill 13.0.2 API Lookup Verification
+- More Javadoc Parser Profiles
 - Windows x64 standalone API Lookup
 - macOS ARM64 standalone API Lookup
 - WRS-specific Rule
@@ -885,7 +1048,7 @@ Real Verification
 
 ---
 
-## 26. Core Principle
+## 29. Core Principle
 
 Windchill AI DevKit 的核心职责可以概括为：
 

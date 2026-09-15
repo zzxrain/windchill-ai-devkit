@@ -24,15 +24,54 @@ description: 当任务涉及 PTC Windchill Java API、wt.*、com.ptc.*、Windchi
 
 不得把推测结果作为已经确认的代码交付。
 
-## 2. API 事实必须匹配目标 Windchill 版本
+## 2. API 事实必须匹配当前项目 Windchill Version
 
-API 是否存在、签名、Deprecated、Supported 和 Extendable 状态，都必须以目标 Windchill 版本为准。
+API 是否存在、签名、Deprecated、Supported 和 Extendable 状态，都必须以当前项目声明的 Windchill Version 为准。
+
+当前项目 Windchill Version 应优先从项目 `AGENTS.md` 获取。
+
+版本标识不得从以下内容自行推断：
+
+- Javadoc ZIP 文件名
+- 其他项目
+- Golden Reference
+- 当前模型知识
+- 已安装的其他版本 API Index
 
 其他 Windchill 版本的资料只能作为线索，不得作为目标版本已经确认的证明。
 
 不得在无法确认目标版本时静默假设版本。
 
-## 3. 优先使用 Supported API 和正式扩展点
+## 3. 项目 Javadoc 自动索引
+
+如果项目 `AGENTS.md` 配置了：
+
+`PTC Javadoc / Javadoc ZIP`
+
+则需要精确 PTC API 事实时，应使用该 ZIP 为当前项目 Windchill Version 建立或复用本地 API Index。
+
+推荐流程：
+
+1. 读取项目 `Windchill Version`
+2. 读取项目 `Javadoc ZIP`
+3. 如果 Javadoc ZIP 使用项目相对路径，先根据项目根目录解析为绝对路径
+4. 调用 `ensure_javadoc_index`
+5. 索引准备成功后，再使用 `get_class`、`search_method`、`get_method` 等查询工具
+
+不得：
+
+- 从 Javadoc 文件名猜测 Windchill Version
+- 因本机已经存在其他版本索引而切换版本
+- 在同版本不同 Javadoc Source 发生冲突时自动覆盖已有索引
+- 在索引构建失败后把 API 结果描述为已经验证
+
+`ensure_javadoc_index` 建立的是本地派生缓存，不修改项目源码和 Javadoc ZIP。
+
+如果索引已存在且来源一致，应直接复用。
+
+如果自动索引失败，应保留错误信息，并将相关 API 标记为未验证。
+
+## 4. 优先使用 Supported API 和正式扩展点
 
 存在合理方案时，应优先选择 PTC Supported API。
 
@@ -48,7 +87,7 @@ API 是否存在、签名、Deprecated、Supported 和 Extendable 状态，都�
 
 Java 能够访问或继承某个类，不代表它是稳定的 Customization API。
 
-## 4. Unsupported API 不是绝对禁止，但必须显式识别风险
+## 5. Unsupported API 不是绝对禁止，但必须显式识别风险
 
 实际项目确有必要使用 Unsupported API 时，可以采用，但必须：
 
@@ -61,13 +100,13 @@ Java 能够访问或继承某个类，不代表它是稳定的 Customization API
 
 不得把“当前能够编译运行”解释为“PTC 官方支持”。
 
-## 5. Deprecated API 不应成为新代码默认选择
+## 6. Deprecated API 不应成为新代码默认选择
 
 新代码遇到 Deprecated API 时，应优先检查目标版本是否存在推荐替代方案。
 
 修改历史代码时，如果无法确认替代方案行为兼容，不得为了“清理 Deprecated”而自行替换。
 
-## 6. Classpath、历史代码和参考代码都不是 API 权威证明
+## 7. Classpath、历史代码和参考代码都不是 API 权威证明
 
 以下内容都可以作为线索或兼容性证据：
 
@@ -86,13 +125,13 @@ Java 能够访问或继承某个类，不代表它是稳定的 Customization API
 
 精确产品事实应回到目标版本官方资料或 API Lookup。
 
-## 7. 优先复用 Windchill 平台业务能力
+## 8. 优先复用 Windchill 平台业务能力
 
 涉及 Persistence、Versioning、Checkout、Lifecycle、Workflow、Access Control、Content、Structure、Queue、Event 等平台语义时，应先寻找相应的 Windchill Business API。
 
 不得仅因为若干底层 API 能够拼出结果，就绕过已有的平台 Service 或正式业务语义。
 
-## 8. 完成代码后验证实际使用到的 PTC API
+## 9. 完成代码后验证实际使用到的 PTC API
 
 至少确认本次新增或修改 API 的：
 

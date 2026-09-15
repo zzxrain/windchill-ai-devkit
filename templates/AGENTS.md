@@ -28,7 +28,7 @@
 
 ## 2. Windchill Platform Baseline
 
-- Windchill Version: `<REQUIRED，例如 13.0.2.0>`
+- Windchill Version: `<REQUIRED，例如 13.0.2.0、13.1.2.0、2027>`
 - Java Version: `<REQUIRED，例如 17>`
 - Database: `<Oracle | PostgreSQL | SQL Server | Other | Unknown>`
 - Operating System: `<OPTIONAL>`
@@ -48,11 +48,34 @@
 
 本节声明的 Windchill Version 是当前项目的目标版本。
 
+Windchill Version 是项目声明的版本标识，不得由 Javadoc ZIP 文件名推断。
+
 其他项目代码、QMind、Golden Reference 或模型知识中出现的其他 Windchill 版本只能作为参考，不得自动替代当前项目版本。
 
 如果 DEV、TEST、UAT、PROD 的 Windchill 版本存在差异，应在此明确说明：
 
 `<None 或具体差异>`
+
+### PTC Javadoc
+
+- Javadoc ZIP: `<推荐填写项目相对路径；没有则填写 N/A>`
+
+推荐：
+
+```text
+.windchill-ai/javadoc/WindchillJavadoc.zip
+```
+
+Javadoc ZIP：
+
+- 仅用于当前项目目标 Windchill Version 的 API 验证；
+- 文件名不要求包含 Windchill Version；
+- 不应提交到项目 Git Repository；
+- 项目相对路径应由 AI Agent 根据项目根目录解析为绝对路径后再交给 API Lookup。
+
+如果配置了 Javadoc ZIP，AI Agent 在需要精确 PTC API 事实时，应确保该 ZIP 已建立本地 API Index。
+
+本地索引属于派生缓存，不进入项目 Repository。
 
 ---
 
@@ -389,7 +412,11 @@ AI Agent 处理当前项目任务时，应按以下顺序：
 6. 应用 `windchill-ai-devkit` Rules
 7. 需要 Windchill / XWorks 产品知识时使用企业 QMind
 8. 需要企业批准实现模式时检查 Golden Reference
-9. 需要精确 PTC API 事实时使用 Windchill API Lookup
+9. 需要精确 PTC API 事实时：
+   - 读取当前项目 Windchill Version；
+   - 读取 PTC Javadoc ZIP；
+   - 必要时自动建立或复用本地 Javadoc API Index；
+   - 再执行 Windchill API Lookup
 10. 只实施完成当前任务所需的最小修改
 11. 执行当前环境真正能够完成的 Build / Test / Review
 12. 明确指出仍需 Windchill Runtime 验证的行为
@@ -414,5 +441,7 @@ AI Agent 应：
 1. 先检查当前仓库能否找到可靠证据；
 2. 无法确认时明确指出缺失项；
 3. 只有缺失信息确实阻止正确决策时才向用户询问。
+
+如果任务要求精确 PTC API 验证，但项目没有配置可用的 Javadoc ZIP，Agent 应明确说明无法完成目标版本 API 精确验证。
 
 不得自行猜测不存在的项目事实。
