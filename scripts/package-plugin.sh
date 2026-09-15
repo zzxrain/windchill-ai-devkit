@@ -136,7 +136,7 @@ git -C "${GOLDEN_PATH}" archive \
   "${EXPECTED_GOLDEN_SHA}" |
   tar -xf - -C "${STAGE_DIR}/${GOLDEN_PATH}"
 
-# Repository-maintenance files are not required at Qoder runtime.
+# Repository-maintenance files are not needed by the installed Qoder plugin.
 rm -f "${STAGE_DIR}/${GOLDEN_PATH}/.gitignore"
 
 REQUIRED_FILES=(
