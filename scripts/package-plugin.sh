@@ -136,6 +136,9 @@ git -C "${GOLDEN_PATH}" archive \
   "${EXPECTED_GOLDEN_SHA}" |
   tar -xf - -C "${STAGE_DIR}/${GOLDEN_PATH}"
 
+# Repository-maintenance files are not required at Qoder runtime.
+rm -f "${STAGE_DIR}/${GOLDEN_PATH}/.gitignore"
+
 REQUIRED_FILES=(
   ".qoder-plugin/plugin.json"
   "mcp.json"
@@ -170,10 +173,16 @@ if [[ "${REFERENCE_COUNT}" -eq 0 ]]; then
 fi
 
 if find "${STAGE_DIR}" \
-  \( -name '.git' -o -name '.gitmodules' -o -name '.idea' -o -name '.DS_Store' \) \
+  \( \
+    -name '.git' \
+    -o -name '.gitmodules' \
+    -o -name '.gitignore' \
+    -o -name '.idea' \
+    -o -name '.DS_Store' \
+  \) \
   -print |
   grep -q .; then
-  fail "Git/IDE metadata was found in plugin staging."
+  fail "Repository or IDE metadata was found in plugin staging."
 fi
 
 log "Golden Reference entries materialized: ${REFERENCE_COUNT}"
@@ -221,8 +230,10 @@ if ! grep -Fxq 'skills/windchill-golden-reference/CATALOG.md' <<<"${ZIP_ENTRIES}
   fail "ZIP does not contain Golden Reference CATALOG.md."
 fi
 
-if grep -Eq '(^|/)\.git(/|$)|(^|/)\.gitmodules$|(^|/)\.idea(/|$)' <<<"${ZIP_ENTRIES}"; then
-  fail "ZIP unexpectedly contains Git or IDE metadata."
+if grep -Eq \
+  '(^|/)\.git(/|$)|(^|/)\.gitmodules$|(^|/)\.gitignore$|(^|/)\.idea(/|$)' \
+  <<<"${ZIP_ENTRIES}"; then
+  fail "ZIP unexpectedly contains repository or IDE metadata."
 fi
 
 if command -v shasum >/dev/null 2>&1; then
