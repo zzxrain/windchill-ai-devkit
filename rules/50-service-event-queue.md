@@ -85,6 +85,31 @@ Veto Listener 抛出的异常可能影响事件发出方的原始事务。
 
 Listener 中的副作用也必须考虑原事务最终可能回滚。
 
+`PRE_*` / `POST_*` Event Name 主要描述事件阶段，不得仅根据名称推导：
+
+```text
+PRE_* 一定可以 Veto
+POST_* 一定不能 Veto
+```
+
+实际 Veto 能力必须结合：
+
+- 具体 Event
+- Event Key
+- 注册方式
+- `notifyEvent()` / `notifyVetoableEvent()` callback
+- 目标版本官方资料
+
+确认。
+
+同样，不得因为当前代码选择：
+
+```java
+notifyEvent(...)
+```
+
+就把“当前实现没有 Veto”扩大为“该 Event 产品语义上绝对不能 Veto”。
+
 ---
 
 ## 6. Queue 用于明确的后台执行边界
@@ -166,6 +191,16 @@ Queue 执行所需的数据必须能够在后台执行时可靠获得。
 
 不得假设自定义 Service Number 在后续 Windchill 版本中天然不会与 PTC Service 冲突。
 
+不得因为一个 Class：
+
+- 继承 `StandardManager`
+- 实现 Service
+- 注册 Event Listener
+
+就自动增加远程调用接口或 `RemoteAccess`。
+
+只有业务确实需要 Remote Method 调用，并且目标版本 API / Service Contract 已确认时，才应增加对应远程能力。
+
 ---
 
 ## 10. Runtime 行为无法确认时必须明确验证
@@ -178,7 +213,20 @@ Queue 执行所需的数据必须能够在后台执行时可靠获得。
 
 - Event 实际触发时机
 - Listener 与事务的实际关系
+- Event 是否支持 Veto
 - Veto 后的回滚行为
 - Queue 执行 Principal
 - Queue 失败 / 重试行为
 - Service Startup 顺序
+
+不得把：
+
+```text
+当前实现方式
+```
+
+反向描述成：
+
+```text
+Windchill 产品必然行为
+```

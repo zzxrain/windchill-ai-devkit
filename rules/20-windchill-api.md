@@ -24,9 +24,18 @@ description: 当任务涉及 PTC Windchill Java API、wt.*、com.ptc.*、Windchi
 
 不得把推测结果作为已经确认的代码交付。
 
-## 2. API 事实必须匹配当前项目 Windchill Version
+## 2. API 和产品行为事实必须匹配当前项目 Windchill Version
 
 API 是否存在、签名、Deprecated、Supported 和 Extendable 状态，都必须以当前项目声明的 Windchill Version 为准。
+
+以下描述同样属于需要证据支持的产品事实：
+
+- 某 API 已经被另一个 API 正式替代
+- 某 API 在某个版本已经 Removed / Deprecated / Unsupported
+- 某 Extension Point 是官方推荐方案
+- 某 Event 一定可以或不可以 Veto
+- 某 Framework Callback 在特定阶段一定会被调用
+- 某行为适用于全部 Windchill 13.x / 2027.x
 
 当前项目 Windchill Version 应优先从项目 `AGENTS.md` 获取。
 
@@ -41,6 +50,20 @@ API 是否存在、签名、Deprecated、Supported 和 Extendable 状态，都�
 其他 Windchill 版本的资料只能作为线索，不得作为目标版本已经确认的证明。
 
 不得在无法确认目标版本时静默假设版本。
+
+不同官方示例采用不同的新旧 API 或 Coding Style，也不能单独证明：
+
+```text
+旧 API 已被正式替代
+```
+
+或：
+
+```text
+旧 API 已被 Deprecated / Removed
+```
+
+必须以目标版本官方资料或 Javadoc 状态为准。
 
 ## 3. 项目 Javadoc 自动索引
 
@@ -106,6 +129,15 @@ Java 能够访问或继承某个类，不代表它是稳定的 Customization API
 
 修改历史代码时，如果无法确认替代方案行为兼容，不得为了“清理 Deprecated”而自行替换。
 
+不得因为：
+
+- 新版 Guide 示例使用另一个 API
+- 当前项目更多代码使用另一个 API
+- API 名称看起来更新
+- 模型认为某写法“更现代”
+
+就自行宣布旧 API 已 Deprecated 或被替代。
+
 ## 7. Classpath、历史代码和参考代码都不是 API 权威证明
 
 以下内容都可以作为线索或兼容性证据：
@@ -122,6 +154,21 @@ Java 能够访问或继承某个类，不代表它是稳定的 Customization API
 - 是推荐方案
 - 适用于目标版本
 - 会在升级后保持兼容
+- 已经替代另一个 API
+
+同样，不同 Framework 之间只能借鉴设计思想。
+
+例如：
+
+```text
+XWorks optional validation
+```
+
+不能仅通过语义类比推导：
+
+```text
+PTC OOTB Validator 一定存在完全等价的 Status / Method / Hook
+```
 
 精确产品事实应回到目标版本官方资料或 API Lookup。
 

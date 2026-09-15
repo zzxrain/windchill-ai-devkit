@@ -104,7 +104,33 @@ UI Validator 可用于决定 Action 或 UI Component 的：
 
 不得因为 Action 已被 Validator 隐藏或禁用，就省略真正的服务端 Access Control 或业务校验。
 
-敏感操作的最终授权必须在可信服务端边界完成。
+`validateFormSubmission()` 虽然运行在服务端，可以作为 Wizard / UI 提交阶段的重要校验点，但仍不能自动替代：
+
+- FormProcessor 中必要的输入重验
+- Service Boundary 中的最终授权
+- 对象当前状态检查
+- Version / Working Copy 检查
+- 核心业务不变量
+
+敏感操作的最终授权必须在真正执行该业务操作的可信服务端边界完成。
+
+不同 Validation Phase 支持的 Method、Status 和客户端行为不得互相类推。
+
+例如某个 Post-select Validator 支持：
+
+```text
+PROMPT_FOR_CONFIRMATION
+```
+
+不能因此自动推导：
+
+```text
+validateFormSubmission()
+```
+
+阶段也存在完全相同的交互能力。
+
+精确行为必须以目标版本 Windchill API / Guide 为准。
 
 遵守：
 
@@ -151,6 +177,35 @@ DataUtility 主要用于将对象或属性转换成 Windchill UI 所需的显示
 DataUtility 可能在表格大量行和属性渲染过程中反复执行。
 
 如果需要额外数据，应特别注意 N+1 查询和页面性能。
+
+当目标版本支持相应模式时，应优先：
+
+```text
+setModelData()
+    ↓
+针对待处理对象集合批量准备数据
+    ↓
+getDataValue()
+    ↓
+读取已准备的数据并完成 UI 渲染
+```
+
+批量准备不等于必须把所有数据压成一个查询。
+
+应根据：
+
+- 对象数量
+- Query 条件
+- 数据库参数限制
+- Windchill Persistence 语义
+
+决定一次或少量批量调用。
+
+如果 DataUtility 使用实例字段保存预取结果，必须同时确认其注册和生命周期不会让多个无关请求共享该可变状态。
+
+不得把 Builder 的 Singleton 语义或 DataUtility 的实例生命周期相互混淆。
+
+具体 DataUtility lifecycle / cardinality 行为必须以目标 Windchill 版本配置和官方资料为准。
 
 ---
 
