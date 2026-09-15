@@ -1,8 +1,8 @@
 {
   "name": "windchill-ai-devkit",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "displayName": "Windchill AI DevKit",
-  "description": "Windchill 二次开发 AI 辅助开发规则、企业知识检索及 PTC API 精确查询工具",
+  "description": "Windchill 二次开发 AI 辅助开发规则、企业知识检索、Golden Reference 及 PTC API 精确查询工具",
   "author": {
     "name": "PLM Architecture Team"
   },
@@ -15,7 +15,8 @@
   ],
   "rules": "./rules",
   "skills": [
-    "./skills/qmind-enterprise-router"
+    "./skills/qmind-enterprise-router",
+    "./skills/windchill-golden-reference"
   ],
   "mcpServers": "./mcp.json"
 }
