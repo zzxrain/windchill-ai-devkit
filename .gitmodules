@@ -1,0 +1,3 @@
+[submodule "skills/windchill-golden-reference"]
+	path = skills/windchill-golden-reference
+	url = https://codeup.aliyun.com/60d04cfaccca0c526834b7ad/AI_Projects/windchill-customization-reference.git
