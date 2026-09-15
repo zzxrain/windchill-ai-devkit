@@ -28,7 +28,7 @@
 
 ## 2. Windchill Platform Baseline
 
-- Windchill Version: `<REQUIRED，例如 13.0.2.0、13.1.2.0、2027>`
+- Windchill Version: `<REQUIRED，例如 13.0.2.0、13.1.2.0、2027.0.0.0>`
 - Java Version: `<REQUIRED，例如 17>`
 - Database: `<Oracle | PostgreSQL | SQL Server | Other | Unknown>`
 - Operating System: `<OPTIONAL>`
@@ -46,9 +46,16 @@
 
 ### Version Rule
 
-本节声明的 Windchill Version 是当前项目的目标版本。
+本节声明的 Windchill Version 是当前项目唯一目标版本。
 
-Windchill Version 是项目声明的版本标识，不得由 Javadoc ZIP 文件名推断。
+版本应填写项目实际使用的完整 Release Identifier，例如：
+
+```text
+13.1.2.0
+2027.0.0.0
+```
+
+Windchill Version 不得由 Javadoc ZIP 文件名推断。
 
 其他项目代码、QMind、Golden Reference 或模型知识中出现的其他 Windchill 版本只能作为参考，不得自动替代当前项目版本。
 
@@ -69,6 +76,7 @@ Windchill Version 是项目声明的版本标识，不得由 Javadoc ZIP 文件�
 Javadoc ZIP：
 
 - 仅用于当前项目目标 Windchill Version 的 API 验证；
+- 一个项目通常只配置一个 Javadoc ZIP；
 - 文件名不要求包含 Windchill Version；
 - 不应提交到项目 Git Repository；
 - 项目相对路径应由 AI Agent 根据项目根目录解析为绝对路径后再交给 API Lookup。

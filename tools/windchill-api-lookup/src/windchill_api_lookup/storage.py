@@ -56,24 +56,44 @@ CREATE INDEX api_method_name_idx ON api_method(class_id, name);
 
 
 def validate_version(version: str) -> str:
-    # Windchill traditionally uses numeric dot-separated versions such as
-    # 13.1.2.0, while future releases may use a year identifier such as 2027.
-    # Treat the value as a project-supplied release identifier; never infer it
-    # from the Javadoc filename.
-    if not re.fullmatch(r"(?:[0-9]{4}|[0-9]+(?:\.[0-9]+){1,3})", version):
+    """
+    Validate a project-supplied Windchill release identifier.
+
+    The lookup tool deliberately does not encode Windchill product-version
+    semantics. A release identifier is treated as one to four numeric
+    segments, for example:
+
+        13.1.2.0
+        2027
+        2027.0
+        2027.0.0
+        2027.0.0.0
+
+    The value must come from project context and is never inferred from a
+    Javadoc filename.
+    """
+    if not re.fullmatch(r"[0-9]+(?:\.[0-9]+){0,3}", version):
         raise ApiLookupError(
             "INVALID_ARGUMENT",
-            "版本必须为安全的数字版本标识，例如 13.1.2.0、2027 或 2027.1",
+            "版本必须为 1～4 段数字版本标识，例如 13.1.2.0、2027 或 2027.0.0.0",
         )
     return version
 
 
 def index_path(home: str | Path, version: str) -> Path:
-    return Path(home).expanduser() / "api-index" / validate_version(version) / "api.sqlite"
+    return (
+        Path(home).expanduser()
+        / "api-index"
+        / validate_version(version)
+        / "api.sqlite"
+    )
 
 
 def connect_readonly(path: Path) -> sqlite3.Connection:
-    connection = sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)
+    connection = sqlite3.connect(
+        path.resolve().as_uri() + "?mode=ro",
+        uri=True,
+    )
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA query_only = ON")
     return connection

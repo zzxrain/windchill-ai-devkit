@@ -2,20 +2,36 @@
 
 从本地 PTC Windchill Javadoc ZIP 构建版本隔离的 SQLite 索引，并向 CLI / MCP 提供精确的 Class 和 Method 查询。
 
-当前解析布局及真实数据测试基线针对 **Windchill 13.1.2.0**。
+当前真实 Parser Baseline：
 
-其他 Windchill 版本可以作为独立 Source 建立索引，但其 Javadoc HTML Layout 是否兼容当前 Parser 仍需要真实测试。
+```text
+Windchill 13.1.2.0
+```
 
-工具：
+真实全量索引验证：
+
+```text
+HTML Pages:     8137
+Classes:        6118
+Methods:        23804
+Failed Pages:   0
+Schema Version: 1
+Parser Version: 0.2.0
+```
+
+其他 Windchill 版本可以作为独立 Source 建立索引，但其 Javadoc HTML Layout 是否兼容当前 Parser 仍需要使用真实 Javadoc 验证。
+
+工具遵循以下原则：
 
 - 不从 Javadoc ZIP 文件名推断 Windchill Version
 - 不自动切换到其他已安装版本
 - 不进行跨版本 fallback
 - 不要求 Javadoc ZIP 文件名包含版本号
+- 一个项目通常只配置一个目标版本和一个 Javadoc ZIP
 
 ---
 
-## 1. 安装
+## 1. Python Environment
 
 Python 要求：
 
@@ -23,29 +39,46 @@ Python 要求：
 Python >= 3.11
 ```
 
-进入本目录：
+开发环境推荐使用独立 Virtual Environment。
+
+macOS 示例：
 
 ```bash
+python3 -m venv ~/.venvs/windchill-api-lookup
+source ~/.venvs/windchill-api-lookup/bin/activate
+```
+
+安装开发版本：
+
+```bash
+cd tools/windchill-api-lookup
+
 python -m pip install -e '.[dev]'
+```
+
+运行：
+
+```bash
 windchill-api-lookup --help
 ```
 
-正式安装可使用构建出的 wheel。
+Python Virtual Environment 与 API Index 数据是两个不同概念：
 
-依赖：
+```text
+~/.venvs/windchill-api-lookup
+    → Python Runtime / Dependencies / Executable
 
-- BeautifulSoup
-- lxml
-- MCP Python SDK
-- Python 标准库 sqlite3
+~/.windchill-ai
+    → Javadoc API Index Data
+```
 
-索引数据不进入 Git。
+Virtual Environment 属于可重建运行环境，不应提交 Git。
 
 ---
 
 ## 2. Project Javadoc 工作方式
 
-v0.4 推荐由 Windchill Project Context 提供：
+Windchill Project Context 提供：
 
 ```text
 Windchill Version
@@ -53,7 +86,7 @@ Windchill Version
 一个 Javadoc ZIP 路径
 ```
 
-例如项目 `AGENTS.md`：
+例如：
 
 ```markdown
 - Windchill Version: `13.1.2.0`
@@ -63,10 +96,10 @@ Windchill Version
 - Javadoc ZIP: `.windchill-ai/javadoc/WindchillJavadoc.zip`
 ```
 
-或者未来版本：
+未来版本例如：
 
 ```markdown
-- Windchill Version: `2027`
+- Windchill Version: `2027.0.0.0`
 
 ### PTC Javadoc
 
@@ -77,15 +110,13 @@ Windchill Version
 
 **版本不得从 ZIP 文件名推断。**
 
-因此：
+以下文件名都可以作为 Source：
 
 ```text
 WindchillJavadoc.zip
 ptc-javadoc.zip
 WindchillJavadoc_13_1_2_0.zip
 ```
-
-都可以作为 Source。
 
 推荐项目目录：
 
@@ -128,7 +159,7 @@ zip_path
 - `version` 来自项目 `AGENTS.md`
 - `zip_path` 必须是本地绝对路径
 
-如果 `AGENTS.md` 使用项目相对路径：
+如果 `AGENTS.md` 使用：
 
 ```text
 .windchill-ai/javadoc/WindchillJavadoc.zip
@@ -136,22 +167,20 @@ zip_path
 
 AI Agent 应先根据项目根目录解析为绝对路径，再调用 MCP。
 
-例如：
-
-```text
-/Users/user/work/customer-project/.windchill-ai/javadoc/WindchillJavadoc.zip
-```
-
-第一次调用：
+首次使用：
 
 ```text
 ensure_javadoc_index
         ↓
-读取 ZIP
+Source SHA-256
         ↓
-全量解析
+Javadoc Scan
         ↓
-建立 SQLite
+SQLite Build
+        ↓
+Integrity Check
+        ↓
+Atomic Publish
         ↓
 READY
 ```
@@ -166,7 +195,7 @@ source SHA-256
 parser version
 ```
 
-时直接复用已有索引。
+时直接复用已有 Index。
 
 ---
 
@@ -178,7 +207,7 @@ parser version
 ~/.windchill-ai
 ```
 
-可通过：
+可以通过：
 
 ```text
 WINDCHILL_API_HOME
@@ -193,13 +222,15 @@ WINDCHILL_API_HOME
 └── api-index/
     ├── 13.1.2.0/
     │   └── api.sqlite
-    └── 2027/
+    ├── 2027.0.0.0/
+    │   └── api.sqlite
+    └── 2027.1.0.0/
         └── api.sqlite
 ```
 
 一个项目通常只使用一个 Windchill Version。
 
-本机可以因为不同项目而同时存在多个版本的本地 Index。
+同一开发机可以因为不同项目同时存在多个 Version Index。
 
 查询必须显式使用当前项目 Version。
 
@@ -207,26 +238,43 @@ WINDCHILL_API_HOME
 
 ## 5. Version 规则
 
-当前支持安全的数字 Release Identifier，例如：
+Windchill Version 被视为 Project Context 提供的 Release Identifier。
+
+当前允许：
 
 ```text
-13.0
-13.0.2.0
-13.1.2.0
-2027
-2027.1
-2027.1.0
+1～4 段纯数字
 ```
 
-版本是 Project Context 声明值。
+例如：
 
-工具不会根据：
+```text
+13
+13.1
+13.1.2
+13.1.2.0
+
+2027
+2027.0
+2027.0.0
+2027.0.0.0
+2027.1.0.0
+```
+
+实际项目应尽量填写完整版本，例如：
+
+```text
+13.1.2.0
+2027.0.0.0
+```
+
+工具不会根据以下内容推断版本：
 
 - ZIP 文件名
 - 已有 Index
 - Model Knowledge
-
-推断版本。
+- Golden Reference
+- 其他项目
 
 以下值会被拒绝：
 
@@ -234,28 +282,73 @@ WINDCHILL_API_HOME
 ../13.1
 /tmp/data
 13.x
+13.1.2.0.1
+2027-R1
 Windchill 2027
 ```
 
-这样可以防止版本值被用于逃逸本地 Index Root。
+---
+
+## 6. CLI Index Progress
+
+真实 Windchill Javadoc 可能包含数千个 HTML 页面。
+
+首次建立 Index 可能需要一定时间。
+
+普通交互式终端执行：
+
+```bash
+windchill-api-lookup add-javadoc \
+  --version 13.1.2.0 \
+  --zip ~/Downloads/WindchillJavadoc_13_1_2_0.zip
+```
+
+会显示类似：
+
+```text
+[windchill-api-lookup] Calculating Javadoc source checksum...
+[windchill-api-lookup] Discovering Javadoc HTML pages...
+[windchill-api-lookup] Indexing Javadoc: 250/8137 HTML pages (3.1%)
+[windchill-api-lookup] Indexing Javadoc: 500/8137 HTML pages (6.1%)
+...
+[windchill-api-lookup] Validating index and source checksum...
+[windchill-api-lookup] Publishing local API index...
+[windchill-api-lookup] Javadoc API index build complete.
+```
+
+Progress 输出到：
+
+```text
+stderr
+```
+
+最终 JSON 仍输出到：
+
+```text
+stdout
+```
+
+使用：
+
+```text
+--json
+```
+
+时不会输出 Progress，以保持机器调用结果稳定。
+
+非交互式 TTY 场景同样不会输出 Human Progress。
 
 ---
 
-## 6. Source 冲突
+## 7. Source 冲突
 
-如果当前版本已经存在 Index：
-
-```text
-13.1.2.0
-```
-
-并且再次提供同一个 ZIP：
+如果当前版本已经存在 Index，并且再次提供同一 Source ZIP：
 
 ```text
 SHA-256 unchanged
 ```
 
-则返回：
+返回：
 
 ```text
 reused: true
@@ -263,13 +356,13 @@ reused: true
 
 不会重新构建。
 
-如果同一 Version 提供了不同 ZIP：
+如果同一 Version 提供不同 ZIP：
 
 ```text
 old SHA != new SHA
 ```
 
-则返回：
+返回：
 
 ```text
 INDEX_CONFLICT
@@ -277,7 +370,7 @@ INDEX_CONFLICT
 
 不会自动覆盖。
 
-如确认需要替换，可以由开发人员显式执行：
+如果确认需要替换，由开发人员显式执行：
 
 ```bash
 windchill-api-lookup add-javadoc \
@@ -286,15 +379,15 @@ windchill-api-lookup add-javadoc \
   --replace
 ```
 
-自动 Agent Workflow 不应静默执行 Source Replacement。
+Agent 自动 Workflow 不应静默执行 Source Replacement。
 
 ---
 
-## 7. 手工扫描、导入与查询
+## 8. 手工扫描、导入与查询
 
 自动索引是推荐 Agent Workflow。
 
-CLI 仍保留人工诊断和管理能力。
+CLI 保留人工诊断和管理能力。
 
 ### Scan
 
@@ -304,24 +397,29 @@ windchill-api-lookup scan-javadoc \
   --json
 ```
 
-扫描不会创建索引。
+扫描不会创建正式 Index。
 
 ### Manual Import
 
 ```bash
 windchill-api-lookup add-javadoc \
   --version 13.1.2.0 \
+  --zip /path/to/WindchillJavadoc.zip
+```
+
+指定 Data Home：
+
+```bash
+windchill-api-lookup add-javadoc \
+  --version 13.1.2.0 \
   --zip /path/to/WindchillJavadoc.zip \
-  --home /path/to/data \
-  --json
+  --home /path/to/data
 ```
 
 ### Versions
 
 ```bash
-windchill-api-lookup versions \
-  --home /path/to/data \
-  --json
+windchill-api-lookup versions
 ```
 
 ### Class
@@ -329,9 +427,7 @@ windchill-api-lookup versions \
 ```bash
 windchill-api-lookup get-class \
   --version 13.1.2.0 \
-  wt.part.WTPart \
-  --home /path/to/data \
-  --json
+  wt.part.WTPart
 ```
 
 ### Method
@@ -340,9 +436,7 @@ windchill-api-lookup get-class \
 windchill-api-lookup search-method \
   --version 13.1.2.0 \
   wt.vc.wip.WorkInProgressService \
-  checkout \
-  --home /path/to/data \
-  --json
+  checkout
 ```
 
 ### Exact Overload
@@ -351,34 +445,37 @@ windchill-api-lookup search-method \
 windchill-api-lookup get-method \
   --version 13.1.2.0 \
   wt.vc.wip.WorkInProgressService \
-  'checkout(wt.vc.wip.Workable,wt.folder.Folder,java.lang.String)' \
-  --home /path/to/data \
-  --json
+  'checkout(wt.vc.wip.Workable,wt.folder.Folder,java.lang.String)'
+```
+
+### Index Status
+
+```bash
+windchill-api-lookup get-index-status \
+  --version 13.1.2.0
 ```
 
 ### Index Report
 
 ```bash
 windchill-api-lookup index-report \
-  --version 13.1.2.0 \
-  --home /path/to/data \
-  --json
+  --version 13.1.2.0
 ```
 
 ---
 
-## 8. Query 语义
+## 9. Query 语义
 
 `search-method`：
 
-- 按精确方法名称查询
-- 返回全部重载
-- 省略方法名时返回该类当前页面声明的方法
+- 按精确 Method Name 查询
+- 返回全部 Overload
+- 省略 Method Name 时返回该页面声明的方法
 
 `get-method`：
 
 - 使用原始 `javadoc_id`
-- 精确查询某个重载
+- 精确查询某个 Overload
 
 当前尚未提供：
 
@@ -398,7 +495,7 @@ windchill-api-lookup index-report \
 
 ---
 
-## 9. 数据与构建行为
+## 10. 数据模型
 
 每个版本独立：
 
@@ -406,7 +503,7 @@ windchill-api-lookup index-report \
 <data-home>/api-index/<version>/api.sqlite
 ```
 
-schema v1 包含：
+schema v1：
 
 ```text
 index_metadata
@@ -414,9 +511,9 @@ api_class
 api_method
 ```
 
-类以完整名称唯一。
+Class 以完整名称唯一。
 
-方法以：
+Method 以：
 
 ```text
 (class_id, javadoc_id)
@@ -435,32 +532,42 @@ api_method
 - Method Count
 - Full Scan Diagnostics
 
-字段和构造器暂不入库。
+Fields 和 Constructors 暂不入库。
 
-枚举常量不作为方法。
+Enum Constants 不作为 Method。
 
-注解成员作为方法记录。
+Annotation Members 作为 Method 记录。
 
 ---
 
-## 10. Index 构建安全
+## 11. Index 构建安全
 
-构建行为：
+构建过程：
 
-1. 打开 Source ZIP
-2. 计算 Source SHA-256
-3. 创建临时 SQLite
-4. 全量解析
-5. 写入 Metadata
-6. 执行 SQLite Integrity Check
-7. 再次检查 Source SHA-256
-8. 关闭 SQLite
-9. 原子替换正式 Index
+```text
+Source ZIP
+    ↓
+SHA-256
+    ↓
+Temporary SQLite
+    ↓
+Full Parse
+    ↓
+Metadata
+    ↓
+SQLite Integrity Check
+    ↓
+Source SHA-256 Recheck
+    ↓
+Close SQLite
+    ↓
+Atomic Replace
+```
 
-如果失败：
+如果构建失败：
 
 - 不发布半成品 Index
-- 已有工作 Index 保留
+- 已有有效 Index 保留
 - 临时数据库清理
 
 同版本使用排他 Build Lock。
@@ -472,15 +579,15 @@ api.build.lock
 .building-*.sqlite
 ```
 
-强制终止或断电可能留下这些文件。
+强制终止或断电可能留下相关文件。
 
 确认没有运行中的 Build Process 后才能人工清理。
 
 ---
 
-## 11. Metadata
+## 12. Metadata
 
-`supported` / `extendable`：
+`supported` / `extendable` 在 SQLite：
 
 ```text
 1
@@ -496,15 +603,15 @@ false
 null
 ```
 
-`null` 表示 Javadoc 中无法可靠确认。
+`null` 表示当前 Javadoc 无法可靠确认。
 
-方法的 Supported 状态独立于 Class。
+Method Supported 独立于 Class。
 
-使用方法时仍应同时检查所属 Class 的 Supported 状态。
+使用 Method 时仍应同时检查所属 Class 的 Supported 状态。
 
 ---
 
-## 12. Parser 边界
+## 13. Parser 边界
 
 当前真实 Parser Baseline：
 
@@ -512,15 +619,34 @@ null
 Windchill 13.1.2.0
 ```
 
-当前 Parser 对 Javadoc HTML Layout 有结构假设。
+当前真实全量测试：
+
+```text
+8137 HTML pages
+6118 parsed classes
+23804 methods
+0 failed pages
+```
+
+当前 Parser 对 PTC Javadoc HTML Layout 有结构假设。
 
 因此：
 
-> 支持新的 Windchill Version Identifier
+> Version Identifier 被接受
 
 不等于：
 
-> 已经证明所有历史或未来 Javadoc HTML Layout 都兼容。
+> 该版本 Javadoc Layout 已经验证兼容。
+
+例如：
+
+```text
+2027.0.0.0
+```
+
+作为 Version Identifier 已受支持。
+
+但在取得真实 `2027.0.0.0` Javadoc 并执行全量测试以前，不应声称其 Javadoc Layout 已经 VERIFIED。
 
 未知 Layout 会：
 
@@ -530,11 +656,9 @@ PARSE_FAILED
 
 而不是静默生成不完整 Index。
 
-后续应使用实际版本 Javadoc 对 Parser 进行兼容性验证。
-
 ---
 
-## 13. 错误契约
+## 14. 错误契约
 
 | 退出码 | code | 含义 |
 |---|---|---|
@@ -545,7 +669,7 @@ PARSE_FAILED
 | 5 | PARSE_FAILED | ZIP 或 Javadoc 页面解析失败 |
 | 6 | INDEX_UNAVAILABLE | Index 损坏、不兼容或读写失败 |
 | 7 | INDEX_CONFLICT | 同版本存在不同 Source / Parser Index |
-| 7 | BUILD_IN_PROGRESS | 已有同版本构建 |
+| 7 | BUILD_IN_PROGRESS | 已有同版本 Build |
 | 7 | SOURCE_CHANGED | Build 期间 Source ZIP 变化 |
 
 `versions` 会列出不可用 Index：
@@ -558,7 +682,7 @@ status: unavailable
 
 ---
 
-## 14. MCP
+## 15. MCP
 
 启动：
 
@@ -566,26 +690,36 @@ status: unavailable
 windchill-api-lookup serve
 ```
 
-或：
+或者：
 
 ```bash
 windchill-api-lookup serve \
   --home /path/to/data
 ```
 
-MCP 使用 stdio。
+MCP 使用：
 
-stdout 只用于 MCP Protocol。
+```text
+stdio
+```
 
-日志写 stderr。
+stdout 仅用于 MCP Protocol。
 
-CLI 与 MCP 共用 Repository / Query Layer。
+程序日志应写 stderr。
+
+CLI 与 MCP 共用：
+
+```text
+Repository
+Queries
+Indexer
+```
 
 ---
 
-## 15. MCP Tools
+## 16. MCP Tools
 
-v0.4 提供六个 Tool。
+v0.4 提供六个 Tool：
 
 | Tool | Mutation | Purpose |
 |---|---|---|
@@ -593,7 +727,7 @@ v0.4 提供六个 Tool。
 | `list_versions` | Read-only | 列出已有版本 |
 | `get_class` | Read-only | 精确 Class 查询 |
 | `search_method` | Read-only | Method / Overload 查询 |
-| `get_method` | Read-only | 精确重载查询 |
+| `get_method` | Read-only | 精确 Overload 查询 |
 | `get_index_status` | Read-only | 查看 Index Metadata |
 
 `ensure_javadoc_index` 只修改：
@@ -610,40 +744,46 @@ WINDCHILL_API_HOME
 - AGENTS.md
 - Javadoc ZIP
 
+当前 `ensure_javadoc_index` 仍为同步构建。
+
+首次真实 Javadoc Build 的 MCP 调用耗时需要在 Qoder 客户端继续验证。
+
+如果后续证明存在客户端 Timeout，再考虑：
+
+- MCP Progress Notification
+- Background Build Job
+- Polling Status
+
+当前阶段不提前增加异步复杂度。
+
 ---
 
-## 16. Qoder 推荐 Workflow
+## 17. Qoder 推荐 Workflow
 
-项目：
-
-```text
-AGENTS.md
-```
-
-声明：
+项目 `AGENTS.md` 声明：
 
 ```text
 Windchill Version
 Javadoc ZIP
 ```
 
-当 Agent 需要精确 PTC API：
+Agent 需要精确 PTC API 时：
 
 ```text
 Read AGENTS.md
         ↓
-Version = project Windchill Version
+Version = Project Windchill Version
         ↓
-Javadoc = configured ZIP
+Javadoc = Configured ZIP
         ↓
-Resolve Javadoc path to absolute path
+Resolve ZIP to Absolute Path
         ↓
 ensure_javadoc_index
         ↓
 get_class / search_method / get_method
 ```
 
-如果 Index 已存在：
+已有相同 Index：
 
 ```text
 ensure
@@ -651,9 +791,7 @@ ensure
 reused: true
 ```
 
-开销很小。
-
-如果首次使用：
+首次使用：
 
 ```text
 ensure
@@ -663,11 +801,11 @@ Build
 reused: false
 ```
 
-之后查询只访问 SQLite。
+后续 Query 只访问 SQLite。
 
 ---
 
-## 17. Qoder Plugin 配置
+## 18. Qoder Plugin 配置
 
 仓库根目录：
 
@@ -675,7 +813,7 @@ reused: false
 mcp.json
 ```
 
-配置：
+典型配置：
 
 ```json
 {
@@ -688,51 +826,58 @@ mcp.json
 }
 ```
 
-Qoder GUI 不一定继承用户 Shell 的 Virtual Environment PATH。
+Qoder GUI 不一定继承用户 Shell PATH。
 
-如果提示找不到命令，应将已安装插件中的 `command` 改为实际 executable 的绝对路径，例如：
+开发阶段如果 Qoder 找不到命令，可以使用 Virtual Environment 中 executable 的绝对路径：
 
-```json
-{
-  "mcpServers": {
-    "windchill-api-lookup": {
-      "command": "/absolute/path/to/venv/bin/windchill-api-lookup",
-      "args": ["serve"],
-      "env": {
-        "WINDCHILL_API_HOME": "/absolute/path/to/data"
-      }
-    }
-  }
-}
+```text
+~/.venvs/windchill-api-lookup/bin/windchill-api-lookup
 ```
 
-`WINDCHILL_API_HOME` 指向数据根目录。
+例如实际展开后：
+
+```text
+/Users/<user>/.venvs/windchill-api-lookup/bin/windchill-api-lookup
+```
+
+不要在共享 Repository 中硬编码某个开发人员的 Home 路径。
+
+`WINDCHILL_API_HOME` 指向：
+
+```text
+API Index Data Root
+```
+
+例如：
+
+```text
+~/.windchill-ai
+```
 
 它不指向：
 
-- ZIP
+- Python venv
+- Javadoc ZIP
 - 单个 SQLite
-
-Javadoc ZIP 由 Project Context 提供。
 
 ---
 
-## 18. 验证
+## 19. 验证
 
-执行：
+普通 Unit / Integration Test：
 
 ```bash
 python -m pytest -q
 ```
 
-真实 Javadoc Integration Test：
+使用真实 13.1.2.0 Javadoc：
 
 ```bash
-WINDCHILL_JAVADOC_ZIP=/path/to/WindchillJavadoc_13_1_2_0.zip \
+WINDCHILL_JAVADOC_ZIP=~/Downloads/WindchillJavadoc_13_1_2_0.zip \
 python -m pytest -q
 ```
 
-未设置真实 ZIP 时：
+未配置真实 Javadoc 时：
 
 - Synthetic HTML Test 执行
 - SQLite Test 执行
@@ -740,22 +885,21 @@ python -m pytest -q
 - Failure Recovery Test 执行
 - Version Isolation Test 执行
 
-真实 ZIP 测试跳过。
+真实 Javadoc Test 跳过。
 
 ---
 
-## 19. 当前未实现
+## 20. 当前未实现
 
-当前尚未实现：
+当前暂不实现：
 
-- 继承方法展开
+- Inherited Method Expansion
 - Structured Java Type Parsing
 - Fields
 - Constructors
-- 多种 Javadoc Layout Profile
+- Multi-layout Parser Profiles
 - Standalone Executable Packaging
-
-这些能力应根据真实项目需求逐步增加。
+- Background MCP Index Build
 
 当前优先保证：
 
@@ -767,4 +911,6 @@ Automatic Local Index
 Exact Version Isolation
 +
 Exact API Query
++
+Observable First-time Build
 ```
