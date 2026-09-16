@@ -1,99 +1,135 @@
 # Windchill AI DevKit Packaging
 
-本文档定义 Windchill AI DevKit 的 Plugin ZIP 构建和发布边界。
+本文定义 Windchill AI DevKit 1.0.0 MVP 的 Packaging 与 Release 流程。
 
-当前目标：
+---
+
+## 1. Release Model
+
+Plugin Release 由以下内容共同定义：
 
 ```text
-DevKit Git Repository
+Committed DevKit
 +
-Pinned Golden Reference Submodule
-        ↓
-Self-contained Qoder Plugin ZIP
+Pinned Golden Reference Commit
++
+Plugin Version
++
+Plugin ZIP
++
+SHA-256
++
+Git Tag
 ```
 
-这里的 `Self-contained` 指：
+发布后的 ZIP 不依赖普通开发人员访问 Golden Git Repository。
+
+---
+
+## 2. 1.0.0 Runtime Boundary
+
+1.0.0 Plugin Runtime 包含：
 
 ```text
 Rules
-Skills
+QMind Enterprise Router
 Golden Reference
 Project Templates
 Plugin Metadata
+README
 ```
 
-不代表当前版本已经内置 API Lookup Runtime。
+1.0.0 不包含：
 
-普通开发人员安装最终 ZIP 时，不需要访问 Golden Reference Git Repository。
+```text
+windchill-api-lookup Runtime
+MCP Configuration
+Python Runtime
+PTC Javadoc ZIP
+Automatic Javadoc Index
+```
+
+`tools/windchill-api-lookup` 可以保留在 Source Repository 中继续开发，但不进入 Plugin ZIP。
 
 ---
 
-## 1. Package Model
+## 3. Golden Reference Model
 
-源码状态：
+Golden Repository：
 
 ```text
-windchill-ai-devkit
-        │
-        └── skills/windchill-golden-reference
-                │
-                └── Git Submodule @ exact commit SHA
+https://codeup.aliyun.com/60d04cfaccca0c526834b7ad/AI_Projects/windchill-customization-reference.git
 ```
 
-Git 父仓库只记录：
+DevKit 中位置：
 
 ```text
-Submodule Repository URL
-+
-Submodule Commit SHA
+skills/windchill-golden-reference
 ```
 
-最终 Plugin ZIP 不应保留这种 Git Submodule 依赖关系。
-
-构建阶段必须将 Golden Reference 的实际文件展开到：
+采用：
 
 ```text
-skills/windchill-golden-reference/
+Git Submodule
 ```
 
-最终结构：
+父 Repository 保存：
 
 ```text
-windchill-ai-devkit-<version>.zip
-├── .qoder-plugin/
-│   └── plugin.json
-├── rules/
-├── skills/
-│   ├── qmind-enterprise-router/
-│   │   └── SKILL.md
-│   └── windchill-golden-reference/
-│       ├── SKILL.md
-│       ├── CATALOG.md
-│       ├── README.md
-│       ├── SOURCES.md
-│       ├── CURATION_NOTES.md
-│       └── references/
-├── templates/
-├── mcp.json
-└── README.md
+Golden Commit SHA
 ```
 
-Plugin ZIP 内不包含：
+Packaging 时把该 Commit 的实际文件物化到 Plugin ZIP。
+
+因此：
 
 ```text
-.git/
-.gitmodules
-.gitignore
-.idea/
-Git Credential
-Codeup Credential
+Installed Plugin
+```
+
+不依赖：
+
+```text
+Golden Git Remote
+Golden Git Credential
+Developer Network Access
 ```
 
 ---
 
-## 2. Prerequisites
+## 4. Packaging Preconditions
 
-Release Machine 需要：
+Packaging 前必须满足：
+
+```text
+DevKit working tree clean
+Golden working tree clean
+Golden checkout == parent gitlink SHA
+plugin.json committed
+```
+
+检查：
+
+```bash
+git status
+git submodule status
+git -C skills/windchill-golden-reference status
+```
+
+检查 SHA：
+
+```bash
+git ls-tree HEAD skills/windchill-golden-reference
+git -C skills/windchill-golden-reference rev-parse HEAD
+```
+
+两者必须一致。
+
+---
+
+## 5. Required Local Commands
+
+Packaging Script 需要：
 
 ```text
 git
@@ -103,9 +139,23 @@ unzip
 awk
 find
 sort
+grep
+sed
 ```
 
-建议同时安装：
+SHA-256 使用：
+
+```text
+shasum
+```
+
+或：
+
+```text
+sha256sum
+```
+
+Qoder CLI Validation 属于可选能力：
 
 ```text
 qoder
@@ -117,123 +167,17 @@ qoder
 qodercn
 ```
 
-用于执行 Plugin Validation。
+如果不存在，Packaging 可以继续，但必须理解：
+
+```text
+Package Created
+≠
+Qoder CLI Validation Passed
+```
 
 ---
 
-## 3. Golden Repository Authentication
-
-Golden Reference Repository 可以是需要认证的企业私有 Git：
-
-```text
-https://codeup.aliyun.com/60d04cfaccca0c526834b7ad/AI_Projects/windchill-customization-reference.git
-```
-
-认证只发生在：
-
-```text
-Source Checkout
-CI
-Release Build
-```
-
-认证信息不得写入：
-
-```text
-.gitmodules
-plugin.json
-Packaging Script
-Plugin ZIP
-```
-
-Release Machine 应使用自己的：
-
-```text
-Git Credential Manager
-macOS Keychain
-SSH Agent
-CI Credential
-Service Account
-```
-
-完成 Git 认证。
-
----
-
-## 4. Prepare Source
-
-推荐完整 Clone：
-
-```bash
-git clone --recurse-submodules \
-  <windchill-ai-devkit-repository-url>
-```
-
-如果 DevKit 已经 Clone：
-
-```bash
-git submodule update --init --recursive
-```
-
-检查：
-
-```bash
-git submodule status
-```
-
-再确认 Golden：
-
-```bash
-git -C skills/windchill-golden-reference rev-parse HEAD
-```
-
-父仓库记录的 gitlink：
-
-```bash
-git ls-tree HEAD skills/windchill-golden-reference
-```
-
-两者 SHA 必须一致。
-
----
-
-## 5. Clean Working Tree Requirement
-
-正式 Package 必须来自已经 Commit 的 Repository 状态。
-
-构建前：
-
-```bash
-git status
-```
-
-必须：
-
-```text
-nothing to commit, working tree clean
-```
-
-Golden Submodule 同样必须：
-
-```bash
-git -C skills/windchill-golden-reference status
-```
-
-工作区不干净时，Packaging Script 会直接失败。
-
-这样可以避免将：
-
-```text
-未提交代码
-临时调试代码
-本地实验 Reference
-```
-
-混入 Release。
-
----
-
-## 6. Build
+## 6. Build Plugin
 
 在 DevKit Repository 根目录执行：
 
@@ -241,88 +185,133 @@ git -C skills/windchill-golden-reference status
 ./scripts/package-plugin.sh
 ```
 
-脚本会：
-
-```text
-Validate Git State
-        ↓
-Read Plugin Name / Version
-        ↓
-Verify Golden gitlink SHA
-        ↓
-Archive DevKit Runtime Files
-        ↓
-Archive Golden Actual Files
-        ↓
-Assemble Staging Directory
-        ↓
-Validate Required Files
-        ↓
-Run Qoder Validation When Available
-        ↓
-Build ZIP
-        ↓
-Validate ZIP Structure
-        ↓
-Generate SHA-256
-```
-
-Plugin Version 直接读取：
+Plugin Name 和 Version 从：
 
 ```text
 .qoder-plugin/plugin.json
 ```
 
-因此 Packaging 文档和脚本不需要针对每个 Patch Version 修改文件名逻辑。
+读取。
 
----
-
-## 7. Output
-
-默认输出：
+1.0.0 输出：
 
 ```text
 dist/
-├── windchill-ai-devkit-<version>.zip
-└── windchill-ai-devkit-<version>.zip.sha256
+├── windchill-ai-devkit-1.0.0.zip
+└── windchill-ai-devkit-1.0.0.zip.sha256
 ```
-
-例如 0.5.1：
-
-```text
-dist/
-├── windchill-ai-devkit-0.5.1.zip
-└── windchill-ai-devkit-0.5.1.zip.sha256
-```
-
-`dist/` 和 `build/` 不提交到 Git Repository。
 
 ---
 
-## 8. ZIP Verification
+## 7. Packaged Files
 
-首先读取当前版本：
+Plugin ZIP 必须包含：
+
+```text
+.qoder-plugin/plugin.json
+rules/
+skills/qmind-enterprise-router/
+skills/windchill-golden-reference/
+templates/
+README.md
+```
+
+Golden 必须至少包含：
+
+```text
+skills/windchill-golden-reference/SKILL.md
+skills/windchill-golden-reference/CATALOG.md
+skills/windchill-golden-reference/references/
+```
+
+---
+
+## 8. Files Excluded from ZIP
+
+Plugin ZIP 不包含：
+
+```text
+.git/
+.gitmodules
+.gitignore
+.idea/
+.DS_Store
+tools/
+mcp.json
+PACKAGING.md
+scripts/
+Python Runtime
+PTC Javadoc
+Git Credential
+```
+
+特别注意：
+
+```text
+mcp.json
+```
+
+在 1.0.0 中不应存在。
+
+`.qoder-plugin/plugin.json` 同样不应声明：
+
+```text
+mcpServers
+```
+
+如果未来重新启用 API Lookup，应通过新的 Release 修改：
+
+```text
+Plugin Manifest
+Packaging Script
+Runtime Distribution
+Documentation
+Acceptance Tests
+```
+
+而不是直接把旧的 `mcp.json` 放回 ZIP。
+
+---
+
+## 9. ZIP Verification
+
+读取当前版本：
 
 ```bash
-PLUGIN_VERSION="$(awk -F'"' '/"version"[[:space:]]*:/ { print $4; exit }' .qoder-plugin/plugin.json)"
+PLUGIN_VERSION="$(
+  awk -F'"' '/"version"[[:space:]]*:/ { print $4; exit }' \
+    .qoder-plugin/plugin.json
+)"
 ```
 
-查看 ZIP：
+查看：
 
 ```bash
 unzip -Z1 "dist/windchill-ai-devkit-${PLUGIN_VERSION}.zip"
 ```
 
-必须能够看到：
+确认 manifest：
 
-```text
-.qoder-plugin/plugin.json
-skills/qmind-enterprise-router/SKILL.md
-skills/windchill-golden-reference/SKILL.md
-skills/windchill-golden-reference/CATALOG.md
+```bash
+unzip -Z1 "dist/windchill-ai-devkit-${PLUGIN_VERSION}.zip" \
+  | grep -Fx '.qoder-plugin/plugin.json'
 ```
 
-检查 Golden Reference 数量：
+确认 Golden：
+
+```bash
+unzip -Z1 "dist/windchill-ai-devkit-${PLUGIN_VERSION}.zip" \
+  | grep -Fx 'skills/windchill-golden-reference/SKILL.md'
+```
+
+确认 CATALOG：
+
+```bash
+unzip -Z1 "dist/windchill-ai-devkit-${PLUGIN_VERSION}.zip" \
+  | grep -Fx 'skills/windchill-golden-reference/CATALOG.md'
+```
+
+统计 Reference：
 
 ```bash
 unzip -Z1 "dist/windchill-ai-devkit-${PLUGIN_VERSION}.zip" \
@@ -330,299 +319,382 @@ unzip -Z1 "dist/windchill-ai-devkit-${PLUGIN_VERSION}.zip" \
   | wc -l
 ```
 
-当前 Baseline 预期：
+当前 Baseline 预期应为非零，并与 Source Golden Corpus 一致。
+
+---
+
+## 10. Verify MVP Exclusions
+
+确认不存在 MCP：
+
+```bash
+if unzip -Z1 "dist/windchill-ai-devkit-${PLUGIN_VERSION}.zip" \
+  | grep -Fxq 'mcp.json'; then
+  echo "ERROR: mcp.json must not be packaged"
+  exit 1
+fi
+```
+
+确认不存在 Tools：
+
+```bash
+if unzip -Z1 "dist/windchill-ai-devkit-${PLUGIN_VERSION}.zip" \
+  | grep -q '^tools/'; then
+  echo "ERROR: tools/ must not be packaged"
+  exit 1
+fi
+```
+
+确认不存在 Git Metadata：
+
+```bash
+unzip -Z1 "dist/windchill-ai-devkit-${PLUGIN_VERSION}.zip" \
+  | grep -E '(^|/)\.git(/|$)|(^|/)\.gitmodules$|(^|/)\.gitignore$'
+```
+
+正常情况：
 
 ```text
-62
+no output
 ```
 
 ---
 
-## 9. Qoder Validation
+## 11. SHA-256
 
-如果本机安装：
+查看：
 
-```text
-qoder
+```bash
+cat "dist/windchill-ai-devkit-${PLUGIN_VERSION}.zip.sha256"
 ```
 
-执行：
+Release Record 必须保存该值。
+
+---
+
+## 12. Qoder Validation
+
+如果存在：
 
 ```bash
 qoder plugins validate build/plugin-package/windchill-ai-devkit
 ```
 
-如果中国版 CLI 为：
-
-```text
-qodercn
-```
-
-执行：
+或者：
 
 ```bash
 qodercn plugins validate build/plugin-package/windchill-ai-devkit
 ```
 
-Packaging Script 会自动尝试执行上述 Validation。
+Packaging Script 会自动尝试。
 
-如果两者都不存在：
+没有 CLI 时，使用真实 Qoder / Qoder CN 安装 ZIP 完成最终安装验证。
+
+---
+
+## 13. Installation Smoke Test
+
+安装：
 
 ```text
-Qoder validation skipped
+dist/windchill-ai-devkit-1.0.0.zip
 ```
 
-必须理解为：
+至少检查：
 
 ```text
-Packaging completed
-≠
-Qoder CLI validation completed
+Plugin 可安装
+Version = 1.0.0
+Rules 可发现
+QMind Router 可发现
+Golden Skill 可发现
+Golden CATALOG 可读取
+Golden Reference 可读取
+```
+
+不要求：
+
+```text
+MCP Server
+API Lookup Runtime
+```
+
+因为这两项不属于 1.0.0 MVP。
+
+---
+
+## 14. MVP Functional Smoke
+
+Release 前至少运行两个自然 Prompt。
+
+### DataUtility
+
+```text
+一个 Windchill JCA Table 大约有 2000 行。
+
+其中一列需要根据当前对象再查数据库计算值。
+我准备直接在 getDataValue() 里面做 QuerySpec 查询。
+
+这样设计合适吗？应该怎么改？
+```
+
+至少要求：
+
+```text
+识别 N+1
+推荐 setModelData / batch preparation 模式
+不机械限定单次 IN
+关注 DataUtility lifecycle / cardinality
+不声称 Runtime Verified
+```
+
+### API-sensitive / Listener
+
+```text
+我要监听 WTPart 的持久化事件。
+
+业务要求是在真正写入前检查一个条件，
+不满足就阻止操作；
+写入成功后再做一段后处理。
+
+这种 Listener 应该怎么设计？
+```
+
+至少要求：
+
+```text
+不得仅根据 PRE / POST 名称推导 vetoability
+不得把 POST 自动描述为 transaction commit 后
+不得猜测未经验证的 Event API
+API 无法确认时明确 UNVERIFIED
+不声称 Runtime Verified
+```
+
+Silent Orchestration 属于 1.0.0 UX 目标，但偶发 narration 不作为 MVP Release Blocker。
+
+---
+
+## 15. Release Blockers
+
+以下情况不得发布：
+
+```text
+Plugin ZIP 无法安装
+Plugin Manifest Validation 失败
+Golden 未被正确物化
+Golden SHA 与 gitlink 不一致
+Source working tree 不干净
+Release ZIP 包含 Credential
+Release ZIP 意外包含 mcp.json
+Release ZIP 意外包含 tools/
+Agent 把明显未经验证的 API 声称为已验证
+Agent 声称完成实际未执行的 Runtime Verification
+```
+
+以下问题可作为 1.0.0 Known Limitation：
+
+```text
+API Lookup 不可用
+精确 API 需要人工 / Build 验证
+少量 Skill narration
+Golden 仍有 Candidate 状态
 ```
 
 ---
 
-## 10. Qoder Upload Test
+## 16. Release Commit
 
-最终发布前应使用真实 ZIP 做安装测试。
+正式 1.0.0 Release 应先完成一个 committed baseline。
 
-在 Qoder 中：
+建议 Commit：
 
 ```text
-Extensions
-    ↓
-Plugins
-    ↓
-Add Plugin / Upload Plugin
+chore(release): publish 1.0.0 mvp
 ```
 
-选择：
+Commit 应包含：
 
 ```text
-dist/windchill-ai-devkit-<version>.zip
+Version bump
+MVP runtime boundary
+MCP removal
+API verification fallback
+README update
+Packaging update
 ```
 
-安装后确认：
+---
+
+## 17. Git Tag
+
+1.0.0 Release 通过 Annotated Tag 固定：
 
 ```text
-Plugin Name
+v1.0.0
+```
+
+Tag 必须在：
+
+```text
+Packaging Passed
+Installation Smoke Passed
+MVP Functional Smoke Passed
+```
+
+之后创建。
+
+创建：
+
+```bash
+git tag -a v1.0.0 \
+  -m "Windchill AI DevKit 1.0.0 MVP"
+```
+
+验证：
+
+```bash
+git show --no-patch v1.0.0
+```
+
+确认 Tag 指向当前 Release Commit：
+
+```bash
+git rev-parse HEAD
+git rev-parse 'v1.0.0^{}'
+```
+
+两个 Commit SHA 必须一致。
+
+---
+
+## 18. Push Release
+
+如果 Repository 配置：
+
+```text
+origin
+github
+```
+
+则先确认：
+
+```bash
+git remote -v
+```
+
+推 Branch：
+
+```bash
+git push origin main
+git push github main
+```
+
+推 Tag：
+
+```bash
+git push origin v1.0.0
+git push github v1.0.0
+```
+
+不要使用：
+
+```bash
+git push --tags
+```
+
+去顺带推送历史本地 Tag。
+
+只推本次：
+
+```text
+v1.0.0
+```
+
+---
+
+## 19. Release Record
+
+发布后至少记录：
+
+```text
 Plugin Version
-Rules
-QMind Skill
-Golden Reference Skill
-MCP Server Configuration
-```
-
-均能正确发现。
-
-注意：
-
-```text
-MCP Server Configuration 可发现
-≠
-API Lookup Runtime 已成功启动
-```
-
-API Lookup Runtime 需要单独 SIT。
-
----
-
-## 11. Golden Runtime Model
-
-开发人员安装 Plugin ZIP 后：
-
-```text
-Qoder
-    ↓
-Installed Plugin
-    ↓
-skills/windchill-golden-reference
-    ↓
-local files
-```
-
-Qoder Runtime 不访问：
-
-```text
-Codeup
-GitHub
-Golden Git Repository
-```
-
-因此普通开发人员：
-
-```text
-不需要 Codeup 用户
-不需要 Golden Repository Read Permission
-不需要 Token
-不需要 SSH Key
-不需要执行 git submodule
-```
-
----
-
-## 12. API Lookup Runtime Dependency
-
-当前 0.5.x 的：
-
-```text
-windchill-api-lookup
-```
-
-仍然是独立 Python Runtime / CLI。
-
-Plugin 的：
-
-```text
-mcp.json
-```
-
-当前启动：
-
-```text
-windchill-api-lookup serve
-```
-
-因此：
-
-```text
-Plugin ZIP 成功构建
-```
-
-不代表：
-
-```text
-开发人员机器已经具备 API Lookup Runtime
-```
-
-当前内部测试前提是某个已批准 Python Runtime 中已经安装：
-
-```text
-windchill-api-lookup
-```
-
-并确保该命令能够被 Qoder MCP Process 找到。
-
-推荐开发环境：
-
-```text
-~/.venvs/windchill-api-lookup
-```
-
-这一边界属于当前版本已知限制。
-
-计划在后续版本评估：
-
-```text
-Standalone Binary
-```
-
-目标是进一步形成：
-
-```text
-Plugin-local API Lookup Runtime
-+
-Python-free End-user Installation
-```
-
-PTC Javadoc ZIP 不随 Plugin 分发。
-
-项目仍负责提供与目标 Windchill Version 匹配、合法获得的 Javadoc ZIP。
-
----
-
-## 13. Release Boundary
-
-一个正式 Release 至少应明确：
-
-```text
-DevKit Version
+Git Tag
 DevKit Commit SHA
 Golden Commit SHA
-Plugin ZIP
-Plugin ZIP SHA-256
-```
-
-Golden Repository 更新后，旧 ZIP 不会自动发生变化。
-
-需要：
-
-```text
-Update Golden
-        ↓
-Review
-        ↓
-Update DevKit gitlink
-        ↓
-Build New Plugin ZIP
-        ↓
-Install / Acceptance Test
-        ↓
-Release
-```
-
----
-
-## 14. Release Candidate and Final Release
-
-建议先建立明确的 Acceptance Baseline：
-
-```text
-Committed DevKit
-+
-Committed Golden
-+
-Plugin Version
-        ↓
-Package
-        ↓
-Install
-        ↓
-Acceptance
-```
-
-Acceptance 未完成前，不应声称：
-
-```text
-0.5.1 Acceptance Passed
-Full SIT Passed
-API Lookup Runtime Validated
-```
-
-Acceptance 通过后，再记录最终：
-
-```text
-DevKit SHA
-Golden SHA
 ZIP SHA-256
+Reference Count
+Qoder Validation Result
+Installation Smoke Result
+Functional Smoke Result
+```
+
+查看 DevKit：
+
+```bash
+git rev-parse 'v1.0.0^{}'
+```
+
+查看 Golden：
+
+```bash
+git ls-tree 'v1.0.0' skills/windchill-golden-reference
+```
+
+查看 Artifact：
+
+```bash
+cat dist/windchill-ai-devkit-1.0.0.zip.sha256
 ```
 
 ---
 
-## 15. Packaging Principle
+## 20. Rebuild from Release Tag
 
-Plugin Packaging 的目标不是简单：
+未来需要重建 1.0.0：
 
-```text
-zip repository
+```bash
+git checkout v1.0.0
+git submodule update --init --recursive
+./scripts/package-plugin.sh
 ```
 
-而是：
+因为：
 
 ```text
-从明确的 DevKit Commit
-+
-明确的 Golden Commit
-构建一个自包含、可验证、可复现的 Qoder Plugin Release。
+Plugin Version
+DevKit Files
+Golden gitlink
 ```
 
-这里的自包含边界必须明确：
+都由 Release Tag 固定。
+
+---
+
+## 21. Future API Lookup Integration
+
+未来恢复 Javadoc API Lookup 时，应单独形成后续 Release。
+
+需要重新完成：
 
 ```text
-0.5.x
-Rules / Skills / Golden
-→ Self-contained in Plugin ZIP
+Runtime Distribution Design
+Python / Standalone Strategy
+Plugin Manifest MCP Configuration
+Packaging Integration
+Qoder MCP Startup Test
+Javadoc Index Test
+API Lookup Acceptance
+Documentation
+```
 
-API Lookup Runtime
-→ External Runtime Dependency
+在此之前：
+
+```text
+1.0.0
+```
+
+保持：
+
+```text
+No MCP Runtime Dependency
 ```

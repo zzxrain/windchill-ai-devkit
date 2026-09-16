@@ -35,6 +35,8 @@ require_command unzip
 require_command awk
 require_command find
 require_command sort
+require_command grep
+require_command sed
 
 if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   fail "Current directory is not inside a Git work tree."
@@ -54,13 +56,15 @@ if ! git cat-file -e HEAD:.qoder-plugin/plugin.json 2>/dev/null; then
   fail ".qoder-plugin/plugin.json is not tracked in HEAD."
 fi
 
+PLUGIN_MANIFEST="$(git show HEAD:.qoder-plugin/plugin.json)"
+
 PLUGIN_NAME="$(
-  git show HEAD:.qoder-plugin/plugin.json |
+  printf '%s\n' "${PLUGIN_MANIFEST}" |
     awk -F'"' '/"name"[[:space:]]*:/ { print $4; exit }'
 )"
 
 PLUGIN_VERSION="$(
-  git show HEAD:.qoder-plugin/plugin.json |
+  printf '%s\n' "${PLUGIN_MANIFEST}" |
     awk -F'"' '/"version"[[:space:]]*:/ { print $4; exit }'
 )"
 
@@ -70,6 +74,10 @@ fi
 
 if [[ -z "${PLUGIN_VERSION}" ]]; then
   fail "Unable to read plugin version from .qoder-plugin/plugin.json."
+fi
+
+if grep -q '"mcpServers"[[:space:]]*:' <<<"${PLUGIN_MANIFEST}"; then
+  fail "Plugin manifest declares mcpServers, but the current MVP packaging does not include an MCP runtime."
 fi
 
 EXPECTED_GOLDEN_SHA="$(
@@ -122,7 +130,6 @@ git archive \
   .qoder-plugin \
   rules \
   skills/qmind-enterprise-router \
-  mcp.json \
   templates \
   README.md |
   tar -xf - -C "${STAGE_DIR}"
@@ -136,12 +143,10 @@ git -C "${GOLDEN_PATH}" archive \
   "${EXPECTED_GOLDEN_SHA}" |
   tar -xf - -C "${STAGE_DIR}/${GOLDEN_PATH}"
 
-# Repository-maintenance files are not needed by the installed Qoder plugin.
 rm -f "${STAGE_DIR}/${GOLDEN_PATH}/.gitignore"
 
 REQUIRED_FILES=(
   ".qoder-plugin/plugin.json"
-  "mcp.json"
   "skills/qmind-enterprise-router/SKILL.md"
   "skills/windchill-golden-reference/SKILL.md"
   "skills/windchill-golden-reference/CATALOG.md"
@@ -183,6 +188,14 @@ if find "${STAGE_DIR}" \
   -print |
   grep -q .; then
   fail "Repository or IDE metadata was found in plugin staging."
+fi
+
+if [[ -e "${STAGE_DIR}/mcp.json" ]]; then
+  fail "mcp.json must not be packaged in the current MVP release."
+fi
+
+if [[ -d "${STAGE_DIR}/tools" ]]; then
+  fail "tools/ must not be packaged in the current MVP release."
 fi
 
 log "Golden Reference entries materialized: ${REFERENCE_COUNT}"
@@ -230,6 +243,14 @@ if ! grep -Fxq 'skills/windchill-golden-reference/CATALOG.md' <<<"${ZIP_ENTRIES}
   fail "ZIP does not contain Golden Reference CATALOG.md."
 fi
 
+if grep -Fxq 'mcp.json' <<<"${ZIP_ENTRIES}"; then
+  fail "ZIP unexpectedly contains mcp.json."
+fi
+
+if grep -q '^tools/' <<<"${ZIP_ENTRIES}"; then
+  fail "ZIP unexpectedly contains tools/."
+fi
+
 if grep -Eq \
   '(^|/)\.git(/|$)|(^|/)\.gitmodules$|(^|/)\.gitignore$|(^|/)\.idea(/|$)' \
   <<<"${ZIP_ENTRIES}"; then
@@ -263,5 +284,8 @@ log "  ${DEVKIT_SHA}"
 
 log "Golden commit:"
 log "  ${EXPECTED_GOLDEN_SHA}"
+
+log "Golden Reference count:"
+log "  ${REFERENCE_COUNT}"
 
 log "Packaging completed successfully."
