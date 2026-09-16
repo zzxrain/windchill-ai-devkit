@@ -7,7 +7,7 @@ description: >
   Debug”等 Windchill-specific 工程任务，本 Skill 只负责产品事实，不负责替代 Golden
   Reference 的实现模式选择，也不替代目标版本 Javadoc 的精确 API Metadata 验证。
   Agent 应自主判断是否需要 QMind，用户无需显式要求查询 QMind 或 PTC 文档。
-version: 1.2.2
+version: 1.2.3
 ---
 
 # QMind Enterprise Knowledge Router
@@ -21,7 +21,7 @@ version: 1.2.2
 1. 判断当前任务是否需要 Product / Framework Knowledge；
 2. 从 `references/qmind-registry.md` 选择匹配知识库；
 3. 获取该知识库已经登记的精确 Notebook ID；
-4. 构造针对当前事实缺口的 Question；
+4. 构造针对当前事实缺口的 Query；
 5. 使用实际 QMind Tool Contract 调用知识库；
 6. 判断检索结果具体证明了什么；
 7. 将未覆盖的 Evidence Type 交回 Golden / Project / Build / Runtime。
@@ -148,7 +148,7 @@ UNVERIFIED PTC API
 
 # 3. Mandatory Silent Operation
 
-QMind Router、Registry 选择、Question 构造和 Knowledge Base 调用都是内部过程。
+QMind Router、Registry 选择、Query 构造和 Knowledge Base 调用都是内部过程。
 
 **调用本 Skill 或 QMind Knowledge Base 前，不得发送用户可见的进度说明。**
 
@@ -188,12 +188,14 @@ Agent 应：
 
 这是本 Router 调用 QMind 时必须遵守的 Runtime Contract。
 
-当前 Qoder QMind `retrieve` Tool 要求至少传递：
+根据 Qoder QMind `retrieve` Tool 的实际 Runtime Parameter Validation，当前已经确认至少要求：
 
 ```text
 notebookId
-question
+query
 ```
+
+这两个字段均为必需参数。
 
 Registry 与 Tool 参数的映射必须是：
 
@@ -209,11 +211,11 @@ QMind retrieve
 以及：
 
 ```text
-Router constructed query
+Router constructed product query
      │
      ▼
 QMind retrieve
-    question
+    query
 ```
 
 ## 正确调用形态
@@ -221,7 +223,7 @@ QMind retrieve
 ```json
 {
   "notebookId": "01a07fe9-9132-71b5-8eb6-258b8e2bbe6a",
-  "question": "PTC Windchill 13.1.2.0 PersistenceManagerEvent event notification and veto semantics; confirm PRE/POST phase semantics, transaction relationship, rollback behavior, and notifyVetoableEvent contract."
+  "query": "PTC Windchill 13.1.2.0 PersistenceManagerEvent event notification and veto semantics; confirm PRE/POST phase semantics, transaction relationship, rollback behavior, and notifyVetoableEvent contract."
 }
 ```
 
@@ -233,24 +235,56 @@ references/qmind-registry.md
 
 不得根据 Notebook Name 自行构造 UUID。
 
-## 禁止的参数名称
+## 当前已确认的参数名称
 
-不得把 Router 内部概念直接作为 Tool 参数发送：
-
-```text
-notebook_name
-notebook_id
-query
-```
-
-除非未来实际 Tool Schema 明确要求这些字段。
-
-当前 Runtime Contract 中应使用：
+使用：
 
 ```text
 notebookId
-question
+query
 ```
+
+不得把 Router 内部字段名自行转换成：
+
+```text
+notebook_id
+question
+notebook_name
+```
+
+除非未来实际 Runtime Tool Schema 明确要求。
+
+## Runtime Evidence
+
+当前 Contract 不是根据命名习惯推断，而是根据实际 Qoder Runtime Validation 得到：
+
+```text
+只传 question
+→ required property 'notebookId'
+
+传 notebookId + question
+→ required property 'query'
+```
+
+因此 1.0.0 当前采用：
+
+```text
+notebookId
++
+query
+```
+
+作为已确认的最小 Required Parameter Set。
+
+如果后续 Runtime 又返回新的：
+
+```text
+required property '<field>'
+```
+
+则说明 Contract 仍不完整。
+
+此时应停止当前调用、更新 Tool Contract，而不是模拟检索成功。
 
 ## Notebook Name 的用途
 
@@ -314,7 +348,7 @@ notebookId = Registry.id
 
 ```json
 {
-  "question": "..."
+  "query": "..."
 }
 ```
 
@@ -337,18 +371,18 @@ Selected Registry Entry exists?
         ↓
 Registry.id exists and is non-empty?
         ↓
-question exists and is non-empty?
+query exists and is non-empty?
         ↓
 Build Tool Parameters
         ↓
 retrieve
 ```
 
-最小参数必须满足：
+当前已确认的最小参数必须满足：
 
 ```text
 notebookId != empty
-question != empty
+query != empty
 ```
 
 如果 Registry Entry 没有 ID：
@@ -357,20 +391,19 @@ question != empty
 不要调用 retrieve
 ```
 
-应将该 Knowledge Source 标记为当前不可调用，而不是只发送 question。
+应将该 Knowledge Source 标记为当前不可调用，而不是只发送 query。
 
 ---
 
 ## Rule 3 — Tool Parameter Validation Error 允许修正后重试一次
 
-如果 QMind Tool 返回类似：
+如果 QMind Tool 返回：
 
 ```text
 tool parameter validation failed
-required property 'notebookId'
 ```
 
-这表示：
+应首先把它判断为：
 
 ```text
 Tool Contract Error
@@ -384,23 +417,53 @@ QMind 中没有答案
 Notebook 不存在
 ```
 
-Agent 应：
+### 缺 notebookId
 
-1. 回到已经选择的 Registry Entry；
-2. 读取它的 `id`；
-3. 使用：
+例如：
+
+```text
+params must have required property 'notebookId'
+```
+
+处理：
+
+```text
+Registry.id
+→ notebookId
+```
+
+### 缺 query
+
+例如：
+
+```text
+params must have required property 'query'
+```
+
+处理：
+
+```text
+constructed product query
+→ query
+```
+
+修正后允许重试一次。
+
+不得：
+
+- 用同样的错误参数反复调用；
+- 把 `question` 当作 `query` 的替代字段；
+- 把 Parameter Validation Error 当成 Retrieval Empty；
+- 在 Tool 根本没有成功执行时模拟 QMind Result。
+
+如果使用当前已确认的：
 
 ```text
 notebookId
-question
+query
 ```
 
-重新构造参数；
-4. 重试一次。
-
-不得在缺失 `notebookId` 的情况下重复同一个错误调用。
-
-如果使用正确参数后仍失败，再进入 Failure / Degradation。
+仍返回新的 Required Property Error，则停止自动重试并进入 Tool Contract Diagnosis。
 
 ---
 
@@ -500,8 +563,8 @@ Task Evidence Completed
 默认：
 
 - 1 个主知识库；
-- 1 次精确 Question；
-- 不足时在同一库改写 Question 再查一次；
+- 1 次精确 Query；
+- 不足时在同一库改写 Query 再查一次；
 - 仍不足才使用 fallback / 第二知识库；
 - 默认最多 2 个库；
 - 明确跨域时最多 3 个。
@@ -602,7 +665,7 @@ dev-*
 
 ---
 
-## Rule 9 — 版本信息进入 Question
+## Rule 9 — 版本信息进入 Query
 
 已知目标版本时，例如：
 
@@ -615,7 +678,7 @@ dev-*
 必须写入：
 
 ```text
-question
+query
 ```
 
 优先选择 Registry 中版本适配更明确的知识库。
@@ -628,11 +691,11 @@ question
 
 ---
 
-## Rule 10 — Question 必须针对事实缺口
+## Rule 10 — Query 必须针对事实缺口
 
 不要简单复制用户整段 Prompt。
 
-Question 应包含：
+Query 应包含：
 
 - Product / Module；
 - Object；
@@ -662,7 +725,7 @@ event notification executes inside the emitter transaction.
 
 ---
 
-## Rule 11 — Question 必须脱敏
+## Rule 11 — Query 必须脱敏
 
 不得发送无必要的：
 
@@ -776,9 +839,9 @@ notebookId =
 
 不得跳过该步骤。
 
-## Step 5 — Build Question
+## Step 5 — Build Query
 
-Question 应准确描述当前 Product Knowledge Gap。
+Query 应准确描述当前 Product Knowledge Gap。
 
 例如：
 
@@ -791,12 +854,12 @@ rollback behavior and notifyVetoableEvent contract.
 
 ## Step 6 — Invoke QMind
 
-当前 `retrieve` Tool 最小调用参数：
+根据当前 Runtime Validation，`retrieve` Tool 已确认的最小 Required Parameters：
 
 ```json
 {
   "notebookId": "<Registry.id>",
-  "question": "<constructed product question>"
+  "query": "<constructed product query>"
 }
 ```
 
@@ -805,7 +868,7 @@ rollback behavior and notifyVetoableEvent contract.
 ```json
 {
   "notebook_id": "...",
-  "query": "..."
+  "question": "..."
 }
 ```
 
@@ -813,16 +876,27 @@ rollback behavior and notifyVetoableEvent contract.
 
 ```json
 {
-  "question": "..."
+  "query": "..."
 }
 ```
 
-如果实际 QMind Tool Schema 后续发生变化，应以 Runtime 返回的 Tool Schema / Validation Error 为准更新本 Skill，而不是继续沿用旧参数名称。
+或：
+
+```json
+{
+  "notebookId": "..."
+}
+```
+
+如果实际 QMind Tool Schema 后续继续返回新的 Required Property Error，应以 Runtime Validation 为准继续修正 Contract。
+
+不得根据字段名称习惯猜测未验证参数。
 
 ## Step 7 — Validate Evidence
 
 检查：
 
+- Tool 是否真正执行成功；
 - 是否实际检索了预期 Notebook；
 - 来源是否正确；
 - Version 是否匹配；
@@ -948,25 +1022,64 @@ Windchill Coding / Review 中：
 tool parameter validation failed
 ```
 
-首先判断是否是 Tool Contract 问题。
-
-例如：
+首先判断：
 
 ```text
-params must have required property 'notebookId'
+这是 Tool Contract Error
 ```
 
-处理：
+而不是 Retrieval Result。
+
+当前已确认：
 
 ```text
 Registry.id
 → notebookId
 
-constructed query
-→ question
+constructed product query
+→ query
 ```
 
-修正参数后重试一次。
+如果缺少：
+
+```text
+notebookId
+```
+
+补齐 Registry ID。
+
+如果缺少：
+
+```text
+query
+```
+
+把针对 Product Knowledge Gap 构造的文本放入 `query`。
+
+修正已知错误后允许重试一次。
+
+如果：
+
+```text
+notebookId
++
+query
+```
+
+已经存在，但 Runtime 又返回新的：
+
+```text
+required property '<field>'
+```
+
+则：
+
+```text
+停止自动重试
+→ Tool Contract Diagnosis
+```
+
+不要通过猜测连续添加参数。
 
 这种错误不能被解释成：
 
@@ -997,7 +1110,7 @@ QMind 不可用
 不得只传：
 
 ```text
-question
+query
 ```
 
 继续调用。
@@ -1017,14 +1130,14 @@ Registry.id
 
 ## QMind unavailable
 
-使用正确：
+使用当前已确认的：
 
 ```text
 notebookId
-question
+query
 ```
 
-仍然调用失败后，才考虑 QMind 当前不可用。
+仍然发生非 Parameter Validation 类失败后，才考虑 QMind 当前不可用。
 
 此时：
 
