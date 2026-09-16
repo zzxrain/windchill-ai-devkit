@@ -504,24 +504,21 @@ Golden 仍有 Candidate 状态
 
 ## 16. Release Commit
 
-正式 1.0.0 Release 应先完成一个 committed baseline。
+正式 1.0.0 Release 应先完成 committed baseline。
 
-建议 Commit：
+如果所有 Release 修改还没有提交，推荐 Commit：
 
 ```text
 chore(release): publish 1.0.0 mvp
 ```
 
-Commit 应包含：
+如果主体 Release Commit 已存在但遗漏了 `mcp.json` 删除，则追加：
 
 ```text
-Version bump
-MVP runtime boundary
-MCP removal
-API verification fallback
-README update
-Packaging update
+fix(release): remove paused api lookup mcp
 ```
+
+不要为此重写已经存在的 Git 历史。
 
 ---
 
