@@ -63,7 +63,9 @@ Listener 中应避免无必要的长时间数据库、网络或大批量处理�
 
 不得设计依赖：
 
-`Listener A 必须先于 Listener B 执行`
+```text
+Listener A 必须先于 Listener B 执行
+```
 
 的业务逻辑，除非对应 Windchill Framework 明确定义并保证该顺序。
 
@@ -102,6 +104,20 @@ POST_* 一定不能 Veto
 
 确认。
 
+PTC Service Event Conventions 中，Pre / Post 是常见事件设计模式：
+
+```text
+Pre Event
+→ 通常表示操作即将开始
+→ 通常用于校验并可能 Veto
+
+Post Event
+→ 通常表示操作已经完成到相应 Service Event 阶段
+→ 通常用于后处理
+```
+
+但这是 Event Design Convention，不得扩大为所有 `PRE_*` / `POST_*` Event 的绝对产品语义。
+
 同样，不得因为当前代码选择：
 
 ```java
@@ -112,7 +128,114 @@ notifyEvent(...)
 
 ---
 
-## 6. Queue 用于明确的后台执行边界
+## 6. POST Event 不等于 Transaction Post-Commit
+
+Windchill Service Event 的：
+
+```text
+POST_*
+```
+
+不得自动解释为：
+
+```text
+数据库事务已经 Commit
+```
+
+根据 PTC Service Event Notification 语义，Listener Notification 可以与 Event Emitter：
+
+```text
+同一线程
++
+同一数据库事务
+```
+
+执行。
+
+因此类似：
+
+```text
+POST_STORE
+```
+
+表示相应 Persistence / Service Event 已进入 Post 阶段，不等同于：
+
+```text
+Transaction 已经成功提交
+```
+
+同一事务中的 POST Event 如果产生能够传播的 Veto / Exception，仍可能影响原事务并导致回滚。
+
+### 真正需要 Post-Commit 语义时
+
+如果业务要求是：
+
+```text
+只有数据库事务真正成功 Commit 后
+才执行某项逻辑
+```
+
+不得直接得出：
+
+```text
+Windchill 没有 Post-Commit Hook
+```
+
+的结论。
+
+PTC Customization Guide 描述了 Transaction Context / Transaction Listener 机制，可以围绕事务状态获得通知，包括：
+
+```text
+about to commit
+has committed
+rolls back
+```
+
+并指向 `wt.pom` 中的 Transaction 相关类型，例如：
+
+```text
+Transaction
+TransactionListener
+TransactionCommitListener
+```
+
+这些属于 Product / Framework Evidence。
+
+但是具体：
+
+```text
+Class
+Interface
+Method
+Signature
+Callback
+Supported / Deprecated 状态
+```
+
+仍属于 Exact API Metadata，必须按照目标 Windchill 版本通过 Javadoc / API Lookup 独立验证。
+
+因此回答 Post-Commit 需求时应区分：
+
+```text
+POST_STORE
+→ Persistence Event Post Phase
+
+Transaction Commit Listener
+→ Transaction Lifecycle
+
+Queue
+→ Independent / Background Execution Boundary
+```
+
+三者不能互相替代描述。
+
+Queue 可以用于耗时、外部调用或与用户请求解耦的异步处理，但不得因为 Queue 可以延迟执行，就自动把它描述为 Windchill 唯一的 Post-Commit 机制。
+
+如果 Queue Entry 的创建时机、事务提交可见性或失败语义会影响业务正确性，也必须根据目标版本产品事实继续确认。
+
+---
+
+## 7. Queue 用于明确的后台执行边界
 
 需要以下特征时，应评估使用 Windchill Queue：
 
@@ -139,7 +262,7 @@ Queue 任务属于独立的后台执行过程，不得假定提交线程中的�
 
 ---
 
-## 7. 优先使用目标版本支持的 Queue Service API
+## 8. 优先使用目标版本支持的 Queue Service API
 
 不得因为历史代码直接操作：
 
@@ -157,7 +280,7 @@ Queue 任务属于独立的后台执行过程，不得假定提交线程中的�
 
 ---
 
-## 8. Queue 执行参数和业务逻辑应保持明确
+## 9. Queue 执行参数和业务逻辑应保持明确
 
 Queue Entry 应调用职责明确、可独立执行的服务端方法。
 
@@ -175,7 +298,7 @@ Queue 执行所需的数据必须能够在后台执行时可靠获得。
 
 ---
 
-## 9. 自定义 Service 启动逻辑必须考虑生命周期
+## 10. 自定义 Service 启动逻辑必须考虑生命周期
 
 只有确有需要时才自定义 Windchill Service。
 
@@ -203,7 +326,7 @@ Queue 执行所需的数据必须能够在后台执行时可靠获得。
 
 ---
 
-## 10. Runtime 行为无法确认时必须明确验证
+## 11. Runtime 行为无法确认时必须明确验证
 
 以下行为如果无法从代码和目标版本资料确定，应标记：
 
@@ -215,6 +338,7 @@ Queue 执行所需的数据必须能够在后台执行时可靠获得。
 - Listener 与事务的实际关系
 - Event 是否支持 Veto
 - Veto 后的回滚行为
+- Transaction Listener 实际 Callback 时机
 - Queue 执行 Principal
 - Queue 失败 / 重试行为
 - Service Startup 顺序
