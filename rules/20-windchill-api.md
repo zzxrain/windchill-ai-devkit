@@ -129,6 +129,61 @@ Guide 中出现示例：
 示意代码 — UNVERIFIED PTC API
 ```
 
+并且未验证部分不得伪装成已经知道精确调用形式的 Java API。
+
+如果尚未确认：
+
+```text
+Method Signature
+Constructor Signature
+Parameter Count
+Parameter Type
+Return Type
+Throws
+Overload
+```
+
+则不得输出类似：
+
+```java
+SomePtcClass.someMethod(arg1, arg2);
+```
+
+这种具有“可直接编译”外观的精确调用。
+
+应改成 Pattern-level 或明显不可编译的占位表达，例如：
+
+```text
+<调用目标版本已验证的 Event Key API>
+<调用目标版本已验证的 Persistence API>
+<使用目标版本已验证的 Callback Signature>
+```
+
+或者：
+
+```java
+// Pseudocode — exact PTC API signature must be verified
+registerListener(listener, VERIFIED_EVENT_KEY);
+```
+
+不得用：
+
+```text
+在答案末尾补一句 UNVERIFIED PTC API
+```
+
+来合理化正文中未经验证的具体：
+
+```text
+Method Signature
+Constructor
+Overload
+Parameter List
+Return Type
+```
+
+如果精确 API 是代码能否成立的关键条件，而当前无法验证，应停止在 Pattern-level。
+
 不得把这种代码描述成：
 
 ```text
@@ -471,7 +526,7 @@ Post-submit
 Golden-derived Pattern
 工程风险
 需要项目确认的 API 点
-示意代码
+Pattern-level 伪代码
 ```
 
 ### 不得输出为确定事实
@@ -479,6 +534,8 @@ Golden-derived Pattern
 ```text
 未经验证的 Package Name
 未经验证的 Method Signature
+未经验证的 Constructor Signature
+未经验证的 Parameter List
 未经验证的 Constant
 未经验证的 Supported 状态
 未经验证的 Type Hierarchy
@@ -489,6 +546,30 @@ Golden-derived Pattern
 
 ```text
 UNVERIFIED PTC API
+```
+
+同时必须把未验证部分保持在 Pattern-level。
+
+不得：
+
+```text
+先写一个具体 Java 调用
+        ↓
+不知道 Signature 是否正确
+        ↓
+最后统一写“请查 Javadoc”
+```
+
+正确方式是：
+
+```text
+Exact API 未验证
+        ↓
+不要构造精确调用
+        ↓
+给 Pattern / Placeholder
+        ↓
+说明需要验证的具体 Symbol
 ```
 
 必要时停止在 Pattern-level，不继续伪造精确实现。

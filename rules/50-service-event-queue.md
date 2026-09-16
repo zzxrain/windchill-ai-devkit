@@ -118,6 +118,27 @@ Post Event
 
 但这是 Event Design Convention，不得扩大为所有 `PRE_*` / `POST_*` Event 的绝对产品语义。
 
+尤其禁止使用以下泛化表述作为产品事实：
+
+```text
+Windchill 的事件基本都是 Vetoable
+PersistenceManagerEvent 基本都可以 Veto
+PRE Event 天然就是 Vetoable Event
+POST Event 天然就是普通非 Veto Event
+```
+
+即使某个具体官方示例证明：
+
+```text
+POST_STORE 可以发生 Veto 并导致事务回滚
+```
+
+也只能证明该具体 Event / Framework 场景，不得扩张为：
+
+```text
+所有 Windchill Event 都具有相同 Veto 能力
+```
+
 同样，不得因为当前代码选择：
 
 ```java
@@ -165,6 +186,52 @@ Transaction 已经成功提交
 ```
 
 同一事务中的 POST Event 如果产生能够传播的 Veto / Exception，仍可能影响原事务并导致回滚。
+
+### 用户使用“成功后”时必须主动澄清事务含义
+
+如果需求使用以下表达：
+
+```text
+写入成功后
+保存成功后
+创建成功后
+修改成功后
+操作完成后
+真正写入后
+post processing
+```
+
+并且后续动作是否依赖：
+
+```text
+事务已经成功 Commit
+```
+
+会影响方案正确性，则回答中必须主动区分：
+
+```text
+Persistence / Service POST Event
+```
+
+与：
+
+```text
+Transaction Post-Commit
+```
+
+不得直接把用户口语中的：
+
+```text
+成功后
+```
+
+自动映射为：
+
+```text
+POST_STORE
+```
+
+然后省略事务状态说明。
 
 ### 真正需要 Post-Commit 语义时
 
