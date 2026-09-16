@@ -2,7 +2,7 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": ".*retrieve.*",
+        "matcher": "mcp_call|mcp__.*",
         "hooks": [
           {
             "type": "command",
