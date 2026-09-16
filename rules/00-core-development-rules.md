@@ -164,21 +164,34 @@ AI Agent 不得自行新增第三方 JAR、Framework 或其他运行时依赖。
 
 “代码已实现”不等同于“Windchill 运行验证通过”。
 
-必须区分以下证据和验证层次：
+必须区分：
 
 ```text
 Implementation Pattern Evidence
+Product / Framework Evidence
 API Metadata Verification
 Compile Verification
 Runtime Verification
 ```
 
-其中：
+对应关系：
 
-- PTC Guide、Golden Reference 可以为实现模式提供依据；
-- 目标版本 Javadoc / API Lookup 用于精确 API Metadata；
-- 真实目标 Classpath Build 用于 Compile Verification；
-- 实际 Windchill 环境中的部署和操作用于 Runtime Verification。
+```text
+Golden Reference
+→ Implementation Pattern
+
+PTC Guide / QMind
+→ Product / Framework Behavior
+
+Target-version Javadoc / API Lookup
+→ Exact API Metadata
+
+Target Classpath Build
+→ Compile Verification
+
+Actual Windchill Environment
+→ Runtime Verification
+```
 
 不得把前一层证据描述成后一层验证已经完成。
 
@@ -186,139 +199,376 @@ Runtime Verification
 
 ## 9. 不得用猜测掩盖 Windchill 产品事实的不确定性
 
-遇到 Windchill 专有技术事实不确定时，应优先：
+遇到 Windchill 专有技术事实不确定时，不得先猜一个实现再在结尾补一句：
 
-1. 检查当前项目上下文
-2. 使用适用的专项 Rules
-3. 根据事实类型选择正确证据源
-4. 查询目标版本 Javadoc / API Lookup
-5. 检索批准的企业 Windchill 知识源
-6. 检查适用的 Golden Reference
+> 建议再验证。
+
+应根据事实类型主动取得对应证据。
 
 如果仍无法确认，应明确区分：
 
 - 已确认事实
-- 有依据的推断
+- Golden-derived Pattern
+- Engineering Inference
 - 尚未确认的假设
+- `UNVERIFIED PTC API`
 
-不得为了完成代码而虚构 PTC API、配置项、扩展点或产品行为。
+不得为了完成代码而虚构：
+
+- PTC API
+- Method Signature
+- Constant
+- Extension Point
+- Framework Behavior
+- Versioning Capability
+- Event Semantics
+- Configuration Item
 
 ---
 
-## 10. 自主选择最小充分证据源
+## 10. 回答前必须建立 Internal Evidence Plan
 
-用户只需要描述实际 Windchill 开发问题，不需要了解或显式点名 DevKit 内部组件。
-
-用户无需在 Prompt 中要求：
+任何 Windchill-specific 技术任务，在形成最终答案前都必须在内部判断：
 
 ```text
-使用 Rules
-查询 Golden Reference
-查询 QMind
-查看 PTC Customization Guide
-调用 API Lookup
+当前结论需要哪些 Evidence Types？
 ```
 
-Agent 应根据任务本身自主判断需要哪些证据源。
-
-默认职责划分：
+至少检查：
 
 ```text
-项目事实 / 项目约束
-→ AGENTS.md / Project Code / ADR
-
-代码必须或不得怎么实现
-→ Rules
-
-同类实现通常怎么写
-→ Golden Reference
-
-Windchill / XWorks 产品行为、Framework Contract、
-配置机制、生命周期和官方扩展语义
-→ QMind / 目标版本官方产品资料
-
-PTC Class / Method / Signature / Return / Throws /
-Supported / Extendable / Deprecated 等精确 API Metadata
-→ 目标版本 Javadoc / API Lookup
-
-代码是否在目标依赖中成立
-→ Compile / Build
-
-真实 Event、Transaction、UI、Queue、Workflow、
-Access Control 等运行行为是否成立
-→ Windchill Runtime Verification
+A. Project Context
+B. Implementation Pattern
+C. Product / Framework Behavior
+D. Exact API / Type Metadata
+E. Compile Evidence
+F. Runtime Evidence
 ```
 
-这些证据源不能机械互相替代。
+这个 Evidence Plan 属于内部过程，不向用户输出。
+
+### A. Project Context
+
+需要回答：
+
+```text
+当前项目是什么？
+```
+
+证据：
+
+```text
+AGENTS.md
+Project Code
+ADR
+Project Configuration
+User-provided Context
+```
+
+### B. Implementation Pattern
+
+以下任务默认需要检查 Implementation Pattern：
+
+```text
+怎么实现
+怎么设计
+给代码
+修改 Windchill-specific 代码
+Code Review
+Windchill-specific Debug
+```
+
+如果 Golden Reference Skill 可用：
+
+```text
+必须先执行 CATALOG Preflight
+```
+
+Catalog 中没有强匹配：
+
+```text
+可以停止 Golden 检索
+```
+
+Catalog 中存在直接匹配：
+
+```text
+读取最小充分 Reference
+```
+
+不得因为已经查到 QMind / PTC Guide 就跳过 Golden Preflight。
+
+### C. Product / Framework Behavior
+
+当结论涉及：
+
+```text
+Lifecycle
+Event semantics
+Validation phase
+Wizard behavior
+DataUtility lifecycle
+Queue behavior
+Workflow behavior
+Transaction behavior
+Configuration mechanism
+Official extension semantics
+```
+
+需要：
+
+```text
+Target-version official documentation
+/
+QMind
+```
+
+不得从 Java Signature、Golden 代码形态或名称自行推断。
+
+### D. Exact API / Type Metadata
+
+当最终答案包含具体：
+
+```text
+PTC Class
+Method
+Constructor
+Signature
+Return Type
+Throws
+Constant
+Supported
+Extendable
+Deprecated
+Class hierarchy
+Implemented interface
+Versioned / Iterated / Workable 等类型能力
+```
+
+则这些属于 Exact API / Type Metadata。
+
+如果目标版本 Javadoc / API Lookup 已可用：
+
+```text
+必须实际执行验证
+```
+
+不得只在最终答案中告诉用户：
+
+> 建议再查 Javadoc。
 
 例如：
 
-- Golden Reference 中出现某个 API，不自动证明它在目标版本属于 Supported API；
-- Customization Guide 展示某个 Method，不自动等同于完成目标版本精确 Signature 验证；
-- Javadoc 中存在一个 Method，不自动证明某个 Framework Behavior 一定成立；
-- 当前项目已有代码能运行，不自动证明它属于 PTC Supported API；
-- 静态检查通过，不自动等同于真实编译；
-- 编译通过，不自动等同于 MethodServer Runtime Verification。
+```text
+WTChangeOrder2 是不是 Versioned / Iterated
+```
 
-Agent 应使用完成当前任务所需的最小充分证据集合。
-
-不得为了展示 DevKit 能力而对每个请求机械调用：
+属于目标版本 Type Metadata，不能根据：
 
 ```text
-QMind
-+
+number 唯一
+业务对象类型
+历史代码写法
+模型记忆
+```
+
+推断。
+
+### E. Compile
+
+只有任务实际执行了 Target Build 才能声明：
+
+```text
+Compile Verified
+```
+
+### F. Runtime
+
+只有实际部署 / 执行 Windchill Runtime 场景才能声明：
+
+```text
+Runtime Verified
+```
+
+---
+
+## 11. Required Evidence Set 必须补齐后再回答
+
+识别 Evidence Plan 后，Agent 必须检查：
+
+```text
+Required Evidence Set
+        ↓
+哪些已满足？
+        ↓
+哪些仍缺失？
+        ↓
+补齐必要证据
+        ↓
+Evidence Sufficient?
+        ↓
+Final Answer
+```
+
+不得使用：
+
+```text
+找到一个可信来源
+        ↓
+立即开始回答
+```
+
+替代 Evidence Sufficiency Check。
+
+一个证据源只能证明其实际覆盖的事实。
+
+例如：
+
+```text
 Golden Reference
-+
-API Lookup
-+
-所有 Rules
 ```
 
-简单任务可以只使用项目上下文和适用 Rules。
-
-只有当实现模式、产品事实或精确 API Metadata 确实影响当前结论时，才应增加对应证据源。
-
----
-
-## 11. 默认静默执行内部证据编排
-
-Rules、Golden Reference、QMind、API Lookup 等属于 Agent 内部能力。
-
-普通开发任务中，默认不要向用户逐步播报：
+不能自动证明：
 
 ```text
-我先加载 Skill
-我先读取 Registry
-我现在选择 QMind
-我现在读取 Golden CATALOG
-我现在调用 API Lookup
+Exact API Metadata
 ```
 
-应优先直接给出：
+而：
 
-- 结论；
-- 实现方案；
-- 必要代码；
-- 关键风险；
-- 尚未完成的验证。
+```text
+Javadoc
+```
 
-以下情况可以简要暴露证据来源：
+不能自动证明：
 
-- 用户要求解释依据；
-- Code Review 需要可追溯性；
-- 产品版本或 API 状态会影响关键结论；
-- 多个实现存在重要架构取舍；
-- 证据冲突；
-- 某项关键事实仍为 `UNVERIFIED`；
-- 用户正在诊断 DevKit 本身。
+```text
+复杂 Framework Behavior
+```
 
-即使需要说明来源，也不要把内部 Tool / Skill 调用流水当作最终答案主体。
+同样：
 
-如果某项内部能力不可访问，不得模拟其结果。应使用当前实际可用的证据继续，或明确指出尚未验证的事实。
+```text
+PTC Guide
+```
+
+中的代码示例不能自动证明目标版本 API 的所有 Supported / Deprecated / Signature Metadata。
 
 ---
 
-## 12. Engineering Inference 必须与已确认事实区分
+## 12. 使用最小充分证据，不机械调用全部能力
+
+Evidence Set Complete 不等于调用所有工具。
+
+错误：
+
+```text
+所有 Windchill 请求
+→ QMind
+→ Golden
+→ API Lookup
+→ 全部 Rules
+```
+
+正确：
+
+```text
+根据任务需要选择最小充分集合
+```
+
+例如：
+
+```text
+普通 Java rename
+→ Project Context only
+```
+
+```text
+DataUtility 性能设计
+→ UI Rule
+→ Golden Preflight
+→ 需要生命周期事实时 QMind
+```
+
+```text
+生成新的具体 PTC API 调用代码
+→ Golden / Product Evidence as needed
+→ Exact API Lookup
+```
+
+```text
+解释 Event veto semantics
+→ Event Rule
+→ Product / Framework Evidence
+→ 精确 Event/API Metadata only when required
+```
+
+不得为了展示 DevKit 能力进行无意义重复检索。
+
+---
+
+## 13. 默认静默执行所有内部编排
+
+Rules、Golden、QMind、API Lookup 和 Evidence Plan 都属于内部能力。
+
+### 强制输出规则
+
+在调用 Skill / QMind / Golden / API Lookup：
+
+```text
+之前
+之间
+之后但最终答案尚未形成时
+```
+
+不得发送用户可见的进度播报。
+
+禁止：
+
+```text
+我先调用企业知识路由技能
+我先读取知识库注册表
+我先查看 Golden
+我找到 GR-XXX，接下来读取
+我再查一下 Javadoc
+我先确认一下
+```
+
+Agent 应直接执行内部调用。
+
+正常情况下：
+
+```text
+第一个用户可见文本
+=
+对用户实际问题的实质回答
+```
+
+例外仅包括：
+
+- 必须向用户澄清关键缺失信息；
+- 外部 Skill / Tool 需要用户授权；
+- 工具执行失败且失败本身影响答案；
+- 用户明确要求查看检索过程；
+- 用户正在调试 DevKit 本身。
+
+最终答案可以在确有必要时简洁说明：
+
+```text
+依据：PTC Windchill 13.1.2.0 Customization Guide
+```
+
+或：
+
+```text
+该 API Metadata 已按 13.1.2.0 Javadoc 验证
+```
+
+但不得输出内部路由流水。
+
+---
+
+## 14. Engineering Inference 必须与已确认事实区分
 
 AI Agent 可以基于：
 
@@ -327,12 +577,13 @@ AI Agent 可以基于：
 - PTC 官方资料；
 - 一般软件工程原则；
 
-提出合理的 Engineering Inference 或设计建议。
+提出 Engineering Inference。
 
 但必须区分：
 
 ```text
 PTC Product Fact
+API / Type Metadata
 Golden-derived Pattern
 Project-specific Fact
 Engineering Inference
@@ -341,15 +592,34 @@ Engineering Inference
 不得把：
 
 ```text
-“这个设计看起来合理”
+这个设计通常合理
 ```
 
 改写成：
 
 ```text
-“Windchill 官方就是这样工作的”
+Windchill 产品必然这样工作
 ```
 
-也不得因为某个推断最终碰巧正确，就倒推原始证据链合法。
+也不得因为某个结论最终碰巧正确，就倒推原始证据链合法。
 
-跨 Framework、跨 Validation Phase、跨 Windchill Version 或跨 API 的等价关系尤其需要独立证据。
+尤其不得自行推导：
+
+```text
+PRE_*   => 一定 vetoable
+POST_*  => 一定 non-vetoable
+
+number 唯一
+=> 对象一定不是 Versioned
+
+setModelData
+=> 整个 Table 永远一次调用
+
+batch load
+=> 必须单次 IN query
+
+Framework A 的 warning
+=> Framework B 一定存在等价 Status / Hook
+```
+
+这些结论都必须使用与其事实类型匹配的独立证据。

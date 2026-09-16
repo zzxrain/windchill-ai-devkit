@@ -1,26 +1,29 @@
 ---
 name: qmind-enterprise-router
 description: >
-  企业 QMind 知识路由技能。处理 PTC Windchill、XWorks、MPMLink、ProjectLink、
-  Windchill 安装部署、升级、Bulk Migrator、功能应用培训及二次开发问题时，
-  根据企业维护的 QMind 注册表选择精确知识库，再调用已安装的官方 QMind Knowledge Base
-  Skill 定向检索。Agent 应根据任务本身自主判断是否需要 QMind，用户无需显式要求查询
-  QMind 或 PTC 文档。用于避免依赖 QMind 自动发现知识库，并在 Coding、Code Review、
-  Debug、设计与技术答疑中按需获取受控的企业/官方知识依据。适用于 Windchill Java
-  客制化、JCA、QuerySpec、WRS/OData、BOM、Workflow、系统配置、部署、升级、
-  数据迁移及功能咨询。
-version: 1.2.0
+  企业 QMind 产品知识路由技能。用于确认 PTC Windchill、XWorks、MPMLink、ProjectLink、
+  安装部署、升级、Bulk Migrator、功能应用和二次开发中的 Product / Framework Behavior、
+  生命周期、配置机制、版本差异和官方扩展语义。对于“怎么实现、给代码、Code Review、
+  Debug”等 Windchill-specific 工程任务，本 Skill 只负责产品事实，不负责替代 Golden
+  Reference 的实现模式选择，也不替代 Javadoc/API Lookup 的精确 API Metadata 验证。
+  Agent 应自主判断是否需要 QMind，用户无需显式要求查询 QMind 或 PTC 文档。
+version: 1.2.1
 ---
 
 # QMind Enterprise Knowledge Router
 
 ## 1. 职责边界
 
-本 Skill 是企业 QMind 的**知识路由层**，职责只有三件事：
+本 Skill 是企业 QMind 的产品知识路由层。
 
-1. 判断当前任务是否需要企业 QMind 知识；
-2. 从 `references/qmind-registry.md` 选择最匹配的知识库并构造检索 Query；
-3. 调用官方 QMind Knowledge Base Skill，验证结果后再继续原任务。
+职责：
+
+1. 判断当前任务是否需要 Product / Framework Knowledge；
+2. 从 `references/qmind-registry.md` 选择匹配知识库；
+3. 构造针对当前事实缺口的 Query；
+4. 调用官方 QMind Knowledge Base Skill；
+5. 判断检索结果具体证明了什么；
+6. 将未覆盖的 Evidence Type 交回 Golden / API Lookup / Build / Runtime。
 
 用户无需在 Prompt 中显式要求：
 
@@ -31,113 +34,160 @@ version: 1.2.0
 使用 qmind-enterprise-router
 ```
 
-是否需要 QMind 应由 Agent 根据当前任务涉及的产品事实、Framework Behavior、配置机制、版本差异和证据缺口自主判断。
+QMind 主要回答：
 
-本 Skill **不是** Windchill 开发规范本身，也不替代项目 Rules、`AGENTS.md`、ADR、
-Golden Reference、API Lookup、编译、测试或代码评审。
+```text
+Windchill / XWorks 本身是什么？
+Framework 怎么工作？
+某个产品机制、生命周期、配置或行为是什么？
+```
 
-对于 Windchill 专有行为、安装部署、升级、迁移、XWorks、MPMLink 等问题，
-不要只依赖模型记忆；存在匹配企业知识库且该事实会影响当前结论时，应按需检索。
+QMind 不主要回答：
 
-对于精确 PTC API Metadata，应结合目标版本 Javadoc / API Lookup，不得把 QMind 文档检索自动等同于精确 API 验证。
+```text
+我们这类代码应该采用哪个工程实现模式？
+```
 
-官方 QMind Skill Marketplace ID：
+这个问题优先属于：
 
-`official_vr9O4BTC`
+```text
+Golden Reference
+```
 
-Marketplace ID 仅用于识别目标官方 Skill。实际运行时应调用当前 Qoder 环境中已安装、
-且功能描述为 QMind Knowledge Base / QMind 知识库检索的官方 Skill。
+QMind 也不负责精确确认：
+
+```text
+Class
+Method
+Signature
+Supported
+Extendable
+Deprecated
+Type hierarchy
+Implemented interfaces
+```
+
+这些优先属于：
+
+```text
+Target-version Javadoc
+/
+API Lookup
+```
 
 ---
 
-# 2. 知识权威与冲突处理
+# 2. Knowledge Boundary
 
-必须区分**规范性约束**与**产品事实**。
+## 2.1 Development Decision
 
-## 2.1 规范性约束：代码应该怎么写
+规范性优先级：
 
-默认优先级：
+1. Project Rules / `AGENTS.md`
+2. Approved ADR / Exception
+3. Enterprise Rules
+4. Approved Golden Reference
+5. Candidate Golden Reference
+6. Existing Project Code
+7. Model Knowledge
 
-1. 当前项目已激活的企业/项目 Rules、`AGENTS.md`；
-2. 已批准的项目 ADR / 明确例外；
-3. Approved Golden Reference；
-4. Candidate Golden Reference；
-5. 当前项目既有实现；
-6. 模型通用经验。
+QMind 中的产品资料不能覆盖企业明确的开发约束。
 
-当前项目代码用于理解兼容约束、依赖、扩展点和既有结构，**不是天然的规范来源**。
-
-如果当前实现与企业规则冲突，不得仅为了“保持现有风格”继续复制不规范实现。
-
-如兼容性要求必须沿用旧模式，应明确指出这是兼容性选择或技术债。
-
-## 2.2 产品事实：PTC 产品实际如何工作
-
-不同事实类型应选择与之匹配的证据源。
-
-### Framework / Product Behavior
+## 2.2 Framework / Product Behavior
 
 例如：
 
-- 生命周期；
 - Validation Phase；
-- Event 行为；
-- Wizard 客户端交互；
-- Workflow 行为；
-- 产品配置机制；
-- 官方 Extension Point 语义。
+- Event 语义；
+- Wizard 客户端行为；
+- DataUtility Framework lifecycle；
+- Workflow；
+- Queue；
+- XCONF；
+- 产品配置；
+- 官方 Extension Point；
+- 安装部署；
+- 升级和迁移。
 
 优先依据：
 
-1. 与目标版本匹配的 PTC 官方资料；
-2. 企业审核 QMind；
-3. 与目标版本匹配且有明确来源的 Golden Reference；
-4. 当前项目中相同版本、相同场景下已经验证的实现；
-5. 模型记忆与推断。
+```text
+Target-version PTC Official Documentation
++
+Enterprise-reviewed QMind
+```
 
-### Exact API Metadata
+## 2.3 Exact API Metadata
 
 例如：
 
 - Class 是否存在；
 - Method 是否存在；
 - Signature；
-- Return Type；
-- Parameters；
+- Return；
 - Throws；
 - Supported；
 - Extendable；
-- Deprecated。
+- Deprecated；
+- Class hierarchy；
+- Implemented interface；
+- Versioned / Iterated / Workable 等类型能力。
 
-优先依据：
+优先：
 
 ```text
-目标版本 PTC Javadoc
+Target-version Javadoc
 /
 windchill-api-lookup
 ```
 
-QMind 可以提供 API 线索和官方示例，但在需要“精确 API 已验证”的结论时，不替代目标版本 Javadoc / API Lookup。
-
-如果 Rules 与 PTC 官方产品事实表面冲突：
-
-- Rules 决定团队允许采用的实现方式；
-- 官方资料决定 PTC API、产品行为和版本事实；
-- 不要自行把二者之一覆盖掉；
-- 应指出冲突并选择同时满足二者的方案；
-- 无法同时满足时说明原因。
+QMind 中出现 API 示例可以作为线索，但不能自动把 Exact API Metadata 标记为 VERIFIED。
 
 ---
 
-# 3. 强制执行规则
+# 3. Mandatory Silent Operation
 
-## Rule 1 — Router 先选库，不让 QMind 自动发现
+QMind Router、Registry 选择、Knowledge Base 调用和 Query 改写都是内部过程。
 
-不要向官方 QMind Skill 发出：
+**调用本 Skill 或 QMind Knowledge Base 前，不得发送用户可见的进度说明。**
 
-- “搜索我所有的 QMind”
-- “找一个适合的知识库”
-- “自动选择知识库”
+禁止：
+
+```text
+我先调用企业知识路由技能
+我先读取注册表
+根据注册表我准备查询 ptc-xxx
+我先查一下官方指南
+我已经找到结果，再继续看看 Golden
+```
+
+Agent 应：
+
+```text
+直接调用内部能力
+        ↓
+完成必要证据收集
+        ↓
+第一个用户可见文本直接回答用户问题
+```
+
+只有以下情况可以中断并对用户说话：
+
+- 需要关键澄清；
+- 需要用户授权；
+- Tool / Skill 失败且影响最终答案；
+- 用户明确要求查看检索过程；
+- 用户正在诊断 Router 本身。
+
+最终答案中可以简洁说明最终依据，但不要输出检索流水。
+
+---
+
+# 4. Router Rules
+
+## Rule 1 — Router 先选库
+
+不得要求 QMind 自动搜索所有 Notebook。
 
 必须先读取：
 
@@ -145,115 +195,205 @@ QMind 可以提供 API 线索和官方示例，但在需要“精确 API 已验�
 references/qmind-registry.md
 ```
 
-由本 Router 选择目标知识库，再明确传递：
-
-- `notebook_name`
-- `notebook_id`
-- `query`
-
-如果 QMind Skill 不支持结构化参数，使用自然语言明确传递：
-
-> 请仅检索 QMind 知识库 `<notebook_name>`，知识库 ID `<notebook_id>`，
-> 检索问题为：`<query>`。
-
-ID 是首要定位依据，名称用于可读性和二次校验。
-
-不要猜测、拼接或生成不存在的知识库 ID。
-
-## Rule 2 — 先路由，再检索，再执行
-
-需要企业知识的任务在 Agent 内部遵循：
+再选择：
 
 ```text
-用户任务
-→ 任务分类
-→ 选择 QMind
-→ 构造 Query
-→ QMind 检索
-→ 验证证据
-→ 执行原任务
+notebook_name
+notebook_id
+query
 ```
 
-这是内部执行流程，不要求逐步展示给用户。
+如果 QMind Skill 不支持结构化参数，明确指定目标 Notebook。
 
-在必要的 QMind 检索完成前，不要直接生成大量依赖未确认 Windchill 产品行为的代码或确定性结论。
+不得猜测或生成不存在的 Notebook ID。
 
-用户没有明确要求“查询 QMind”不是跳过必要检索的理由。
+---
 
-同样，不得把自主检索理解成所有 Windchill 请求都必须调用 QMind。
+## Rule 2 — QMind 只解决当前 Product Knowledge Gap
 
-## Rule 3 — 最小充分检索
+调用 QMind 前应先问：
+
+```text
+当前真正缺失的是产品事实吗？
+```
+
+如果当前缺失的是：
+
+```text
+Implementation Pattern
+```
+
+应交给：
+
+```text
+Golden Reference
+```
+
+如果当前缺失的是：
+
+```text
+Exact API Metadata
+```
+
+应交给：
+
+```text
+Javadoc / API Lookup
+```
+
+不要因为用户提到了 Windchill，就机械调用 QMind。
+
+---
+
+## Rule 3 — Coding Task 必须执行 Evidence Handoff
+
+如果原始任务属于：
+
+```text
+怎么实现
+怎么设计
+给代码
+修改代码
+Code Review
+Windchill-specific Debug
+```
+
+QMind 检索完成后，不得直接认为 Evidence Set Complete。
+
+在最终回答前必须检查：
+
+```text
+Implementation Pattern needed?
+        ↓
+Yes
+        ↓
+Golden Catalog Preflight 已执行？
+```
+
+如果没有：
+
+```text
+执行 Golden Preflight
+```
+
+还必须检查：
+
+```text
+最终答案是否包含具体 PTC API / Constant /
+Signature / Type Capability？
+```
+
+如果是，并且 Target-version API Lookup 可用：
+
+```text
+执行 API Verification
+```
+
+所以：
+
+```text
+QMind Search Completed
+≠
+Task Evidence Completed
+```
+
+---
+
+## Rule 4 — 最小充分检索
 
 默认：
 
-- 选择 **1 个主知识库**；
-- 同一知识库先进行 **1 次精确检索**；
-- 结果不充分时，优先在同一知识库中**改写 Query 再检索 1 次**；
-- 仍不足时才根据 `fallback` / `combine_with` 追加第二知识库；
-- 默认最多 2 个知识库；
-- 明确跨域且有理由时最多 3 个。
+- 1 个主知识库；
+- 1 次精确 Query；
+- 不足时在同一库改写 Query 再查一次；
+- 仍不足才使用 fallback / 第二知识库；
+- 默认最多 2 个库；
+- 明确跨域时最多 3 个。
 
-不要因为第一次结果不理想就无差别搜索全部知识库。
+不得无差别搜索全部知识库。
 
-如果当前上下文已经有足够证据，不得为了形式完整而重复检索。
+---
 
-## Rule 4 — XWorks 仅在明确命中时具有最高开发优先级
+## Rule 5 — XWorks 只在明确命中时优先
 
-任务明确出现以下任一情况时：
+任务明确出现：
 
-- `xworks` / `XWorks` / `x-works`
-- 基于 XWorks 的 Windchill 开发
-- XWorks 框架、组件、API、页面、Service、配置或扩展方式
+```text
+XWorks
+xworks
+x-works
+```
 
-必须优先选择：
+或 Project Context：
+
+```text
+XWorks Enabled: true
+```
+
+且任务属于 XWorks 实现范围时，优先：
 
 ```text
 ptc-winidchill-dev-xworks
 ```
 
-如还需要 Windchill 官方底层 API、JCA、QuerySpec、WRS 等，可追加：
+需要 Windchill OOTB 底层产品事实时，可追加：
 
 ```text
 ptc-windchill-dev-general
 ```
 
-不要因为存在通用开发知识库而跳过 XWorks。
-
-也不要仅因普通 Windchill 开发就误选 XWorks。
-
-如果 Project Context 明确：
+如果：
 
 ```text
 XWorks Enabled: false
 ```
 
-则 XWorks 知识最多用于理解通用设计思想，不得据此证明当前技术栈存在等价：
+XWorks 知识最多用于理解设计概念，不得据此证明当前技术栈存在等价：
 
-- PTC Class；
-- Method；
-- Status；
-- Hook；
-- Framework Behavior。
+- PTC Class
+- Method
+- Status
+- Hook
+- Framework Behavior
 
-## Rule 5 — 区分功能应用与二次开发
+---
 
-**功能/业务问题**优先路由到 `training-*`：
+## Rule 6 — 区分功能应用与二次开发
 
-- 功能怎么使用
-- UI 如何操作
-- MPMLink/ProjectLink 的业务对象和流程语义
+功能 / 业务问题优先：
 
-**开发/客制化问题**优先路由到 `dev-*`：
+```text
+training-*
+```
 
-- Java API、JCA、QuerySpec、DataUtility、FormProcessor
-- WRS/OData、Workflow customization
-- XML/actionModel、xconf、定制页面、系统集成
+例如：
 
-**功能 + 开发混合问题**通常组合一个业务库和一个开发库，但只检索完成任务所需的最小集合。
+- UI 怎么使用；
+- MPMLink / ProjectLink 业务语义；
+- 功能操作流程。
 
-## Rule 6 — 版本信息必须进入决策与 Query
+开发 / 客制化产品知识优先：
 
-如果用户、项目或上下文提供 Windchill 版本，例如：
+```text
+dev-*
+```
+
+例如：
+
+- JCA / MVC Framework；
+- Validator Framework；
+- Event / Service；
+- WRS / OData；
+- Workflow customization；
+- XCONF。
+
+实现代码模式仍应检查 Golden。
+
+---
+
+## Rule 7 — 版本信息进入 Query
+
+已知目标版本时，例如：
 
 ```text
 13.0.2
@@ -261,121 +401,90 @@ XWorks Enabled: false
 2027.0.0.0
 ```
 
-则：
+必须写入检索 Query。
 
-1. 将版本写入检索 Query；
-2. 优先选择注册表中明确覆盖该版本的知识库；
-3. 若注册表没有版本元数据，不得假设知识库一定适用于该版本；
-4. QMind 结果若来自其他版本，应在使用前判断兼容性；
-5. 涉及升级、废弃 API、安装部署、WRS/API 差异时，版本不确定会实质影响答案，应明确标注版本风险。
+优先选择注册表中版本适配更明确的知识库。
 
-不要为了所有普通问题都追问版本。
+其他版本资料只能作为线索，不能静默当成当前版本事实。
 
-只有版本会改变关键实现或结论，且无法从项目上下文获得时，才需要阻塞性确认。
+版本未知且会实质改变结论时，应优先从 Project Context 获取。
 
-## Rule 7 — 检索 Query 必须脱敏
-
-构造 Query 时不要包含无必要的：
-
-- 密码、Token、Cookie、私钥、许可证密钥；
-- 完整连接串中的凭据；
-- 客户个人信息；
-- 与检索目标无关的大段客户专有源码或业务数据。
-
-保留技术语义，移除敏感值。
-
-例如把真实 URL、用户名、Token 改成角色或占位符。
-
-## Rule 8 — 根据事实类型选择证据源
-
-QMind 不是所有 Windchill 事实的唯一证据源。
-
-默认：
-
-```text
-产品行为 / Framework Contract / 生命周期 / 配置
-→ QMind / 目标版本官方资料
-
-精确 API Metadata
-→ 目标版本 Javadoc / API Lookup
-
-实现模式
-→ Golden Reference
-
-项目兼容上下文
-→ Project Code / AGENTS.md / ADR
-
-代码是否能够编译
-→ Compile / Build
-
-真实运行表现
-→ Windchill Runtime Verification
-```
-
-不得因为 QMind 中出现某个 API 示例，就直接声明：
-
-```text
-Exact API Metadata VERIFIED
-```
-
-也不得因为 Javadoc 中存在某个 Method，就据此自行推导复杂 Framework Behavior。
-
-## Rule 9 — 默认静默编排
-
-QMind Router、Registry 选择、Query 改写和 Knowledge Base 调用属于 Agent 内部工作过程。
-
-常规情况下不要向用户逐步输出：
-
-```text
-我先调用企业知识路由技能
-我先读取知识库注册表
-我选择 ptc-xxx
-我现在改写 Query
-我再查询一次
-```
-
-应优先直接回答用户真正的问题。
-
-内部可以完整执行：
-
-```text
-Route
-Search
-Validate
-Reason
-```
-
-但用户默认只需要看到：
-
-- 结论；
-- 方案；
-- 必要的证据边界；
-- 关键风险；
-- 未验证项。
+只有无法获取且确实阻塞结论时才向用户追问。
 
 ---
 
-# 4. 路由算法
+## Rule 8 — Query 必须针对事实缺口
 
-## Step 1 — 提取任务特征
+不要简单复制用户整段 Prompt。
 
-提取：
+Query 应包含：
 
-- 产品：Windchill / MPMLink / ProjectLink / Bulk Migrator / XWorks
-- 任务类型：开发 / 功能 / 部署 / 升级 / 数据迁移 / 培训 / Troubleshooting
-- 技术关键词：Java、JCA、QuerySpec、WRS、OData、BOM、Workflow、xconf 等
-- 模块关键词：MPMLink、Process Plan、Operation、ProjectLink 等
-- 版本：例如 13.0.2、13.1.2.0
-- 用户明确指定的知识库名称或 ID
-- 当前任务真正缺失的事实类型
+- Product / Module；
+- Object；
+- Technical Topic；
+- Goal；
+- Windchill Version；
+- 需要确认的 Product Fact。
 
-用户明确指定已登记知识库时优先使用。
+例如：
 
-用户给出未知名称/ID 时不要猜测映射。
+```text
+PTC Windchill 13.1.2.0
+DataUtility setModelData lifecycle and cardinality behavior;
+confirm framework lifecycle semantics, not implementation code.
+```
 
-用户没有指定知识库属于正常情况，不得因此要求用户先选择 QMind。
+而不是：
 
-## Step 2 — 读取注册表
+```text
+帮我优化 DataUtility。
+```
+
+如果缺失的是精确 Method Signature，不要扩大 QMind Query，应转到 API Lookup。
+
+---
+
+## Rule 9 — Query 必须脱敏
+
+不得发送无必要的：
+
+- Password
+- Token
+- Cookie
+- Private Key
+- License Key
+- Customer Personal Data
+- Customer Credential
+- 与事实检索无关的大段专有源码
+
+保留技术语义，移除敏感值。
+
+---
+
+# 5. Routing Algorithm
+
+## Step 1 — Identify Knowledge Gap
+
+先判断：
+
+```text
+当前缺失的是：
+
+Product Behavior?
+Framework Contract?
+Configuration?
+Lifecycle?
+Version Difference?
+Installation / Upgrade / Migration?
+```
+
+如果都不是：
+
+```text
+不要机械调用 QMind
+```
+
+## Step 2 — Read Registry
 
 读取：
 
@@ -383,264 +492,276 @@ Reason
 references/qmind-registry.md
 ```
 
-只允许从注册表选择已经登记的企业 QMind。
+只允许选择已登记 Knowledge Base。
 
-如 Entry 含以下可选字段，应参与判断：
+如果 Entry 提供：
 
-- `versions`
-- `authority`
-- `status`
-- `owner`
-- `last_verified`
+- versions
+- authority
+- status
+- owner
+- last_verified
+- fallback
+- combine_with
 
-`status: deprecated` 的知识库不得作为默认主库，除非任务就是历史版本/历史行为或用户明确指定。
+则应参与判断。
 
-## Step 3 — 计算匹配优先级
+`deprecated` 不作为默认主库。
 
-按以下顺序：
+## Step 3 — Select Notebook
 
-1. 用户明确指定且已登记的知识库；
-2. `strong_match` 命中；
-3. 专用模块/框架知识库；
-4. 任务类型匹配；
-5. 版本匹配；
-6. General/Fallback 知识库。
+顺序：
 
-同等匹配时：
+1. 用户明确指定且已登记；
+2. strong_match；
+3. 专用产品 / 模块；
+4. Task Type；
+5. Version；
+6. General fallback。
 
-- 专用 > 通用
-- 版本精确 > 版本未知
-- XWorks 明确命中时 XWorks > Windchill 通用开发
-- 官方/企业审核专项资料 > 泛化培训资料
-- `active` > `deprecated`
-
-`negative_match` 命中时应显著降权或排除。
-
-## Step 4 — 构造检索 Query
-
-不要简单把用户整句话原样提交给 QMind。
-
-Query 应尽量包含：
-
-- 产品/模块；
-- 对象；
-- 技术点；
-- 用户目标；
-- 关键英文术语；
-- Windchill 版本（已知时）；
-- 需要确认的事实类型：配置、行为、限制、生命周期、推荐扩展点等。
-
-优先查询“完成当前任务所缺失的事实”，而不是泛泛介绍主题。
-
-示例：
-
-用户：
-
-> Windchill 13.0.2 里如何通过 QuerySpec 找到 WTPart 最新迭代？
-
-检索 Query：
-
-> PTC Windchill 13.0.2 WTPart QuerySpec latest version latest iteration Java customization; confirm recommended query pattern and VersionControl/Iteration semantics.
-
-用户：
-
-> 基于 XWorks 给 WTPart 页面增加自定义 Action。
-
-检索 Query：
-
-> XWorks Windchill WTPart custom action JCA action actionModel FormProcessor NmCommandBean; confirm XWorks extension pattern and underlying Windchill framework behavior.
-
-如果当前缺失的是精确 Method Signature，应转向 Javadoc / API Lookup，而不是不断扩大 QMind Query。
-
-## Step 5 — 调用官方 QMind Skill
-
-每个选中的知识库分别调用一次 QMind Skill，传递：
+同等条件：
 
 ```text
-notebook_name: <注册表精确名称>
-notebook_id: <注册表精确 UUID>
-query: <生成的检索 Query>
+专用 > 通用
+版本精确 > 版本未知
+active > deprecated
 ```
 
-如果当前环境可以直接调用官方 QMind Skill，直接调用。
+## Step 4 — Build Query
 
-如果无法通过名称定位：
-
-1. 在可用 Skills 中寻找 QMind / QMind Knowledge Base；
-2. Marketplace ID 为 `official_vr9O4BTC`；
-3. 找到后调用；
-4. 仍不可调用时，不得模拟检索结果。
-
-## Step 6 — 验证检索结果
-
-检查：
-
-- 是否来自预期知识库；
-- 是否直接回答当前事实缺口；
-- 是否与目标版本/模块一致；
-- 是否提供足够依据确认当前需要的产品行为或配置；
-- 是否与 Rules、ADR、项目实际依赖或已验证实现冲突；
-- 是否存在明显跨版本内容或过期资料；
-- 当前问题属于 API Metadata、Framework Behavior、Implementation Pattern 还是 Runtime Behavior。
-
-内部按以下状态处理证据：
-
-- `VERIFIED`：足够支撑当前具体结论；
-- `PARTIAL`：可用于方向，但关键事实仍缺证据；
-- `UNVERIFIED`：不足以支撑确定性实现。
-
-`VERIFIED` 必须针对具体事实使用。
-
-不能因为一份资料整体可信，就把所有相关事实统一标记为 VERIFIED。
+Query 应准确描述当前 Product Knowledge Gap。
 
 例如：
 
 ```text
-Guide 明确说明某 Framework Behavior
-→ 该 Framework Behavior 可以 VERIFIED
-
-Guide 示例中出现某个 Method
-→ 不自动意味着目标版本 Exact API Metadata 已 VERIFIED
-
-代码编译通过
-→ 不自动意味着 Runtime Behavior VERIFIED
+PTC Windchill 13.1.2.0
+PersistenceManagerEvent event notification and veto semantics;
+confirm whether vetoability is determined by PRE/POST naming or by
+specific event/callback contract.
 ```
 
-不要求把这些标签机械输出给用户，但不能把 `PARTIAL/UNVERIFIED` 当成已确认事实。
+## Step 5 — Invoke QMind
 
-主库不足时，先改写 Query 重试一次；再不足才追加 fallback/第二知识库。
+传递：
+
+```text
+notebook_name
+notebook_id
+query
+```
+
+如果官方 QMind Skill 无法调用：
+
+```text
+不得模拟结果
+```
+
+## Step 6 — Validate Evidence
+
+检查：
+
+- 来源是否正确；
+- Version 是否匹配；
+- 是否真正回答当前事实；
+- 是否存在跨版本内容；
+- 它证明的是 Product Behavior 还是仅提供代码示例；
+- 是否仍然存在 Golden / API Metadata 缺口。
+
+内部证据状态：
+
+```text
+VERIFIED
+PARTIAL
+UNVERIFIED
+```
+
+这些状态针对具体事实，不针对整个文档。
 
 ---
 
-# 5. Windchill Coding / Review 特殊规则
+# 6. Evidence Handoff
 
-当任务涉及 Windchill 二次开发、代码评审或 Debug：
+QMind 完成后必须执行 Handoff Check。
 
-1. 根据任务需要，用 QMind 确认 PTC 开发模式、Framework Behavior 和产品事实；
-2. 检查当前项目代码以理解版本、依赖、已有扩展点和兼容约束；
-3. 当前项目代码不得覆盖已激活的企业 Rules / `AGENTS.md`；
-4. 不得仅凭类名规律编造 PTC 类、方法、常量、XML 配置项或参数；
-5. 需要精确 API Metadata 时，应使用目标版本 Javadoc / API Lookup；
-6. 无法确认的重要 PTC API 应标记为 `UNVERIFIED PTC API`；
-7. 如果任务明确使用 XWorks，遵循 XWorks 框架约束；需要 PTC 底层产品事实时再用通用开发库补证；
-8. 如果存在适用的 Golden Reference，可作为实现模式参考，但仍需确认版本、Framework 和项目约束；
-9. 能执行编译/测试时，以真实编译、自动测试、受控验证进一步确认代码；
-10. Code Review 时应区分：
-    - 企业规范符合性；
-    - 需求符合性；
-    - PTC/Windchill 产品事实；
-    - API Metadata；
-    - Compile Verification；
-    - Runtime Verification；
-    - Engineering Inference。
+## Implementation Pattern
 
-默认不要为了展示检索能力而输出内部检索日志。
+如果任务需要：
+
+```text
+实现
+设计
+代码
+Code Review
+Debug
+```
+
+检查：
+
+```text
+Golden Catalog Preflight 是否已完成？
+```
+
+没有则完成后再回答。
+
+## Exact API
+
+如果最终答案包含：
+
+```text
+PTC Class
+Method
+Constant
+Signature
+Supported
+Extendable
+Deprecated
+Type capability
+```
+
+检查：
+
+```text
+Target-version API verification 是否需要且可执行？
+```
+
+可执行则实际执行。
+
+不可执行则标记：
+
+```text
+UNVERIFIED PTC API
+```
+
+## Compile
+
+QMind 不证明：
+
+```text
+Compile Verified
+```
+
+## Runtime
+
+QMind 不证明：
+
+```text
+Runtime Verified
+```
 
 ---
 
-# 6. 用户可见行为
+# 7. Coding / Review 特殊规则
 
-常规情况下：
+Windchill Coding / Review 中：
 
-```text
-用户自然描述任务
-        ↓
-Agent 自主路由
-        ↓
-内部完成必要检索
-        ↓
-直接给出结果
-```
+1. 使用 Rules 确认必须 / 不得做什么；
+2. 用 Project Context 理解当前项目；
+3. 用 Golden 选择实现模式；
+4. 用 QMind / Official Docs 确认产品行为；
+5. 用 Javadoc / API Lookup 确认 Exact API Metadata；
+6. 用 Build 验证编译；
+7. 用 Runtime 验证真实行为。
 
-不要先询问：
+不得让任一单一证据源替代全部其他证据类型。
 
-> 需要我查 QMind 吗？
-
-不要要求：
-
-> 请告诉我应该使用哪个知识库。
-
-不要在最终答案开头连续输出：
+尤其不得：
 
 ```text
-我先调用企业知识路由
-我先读取注册表
-我再检索主库
-我再改写 Query
+读了 Guide
+→ 就直接补齐所有工程实现细节
 ```
 
-仅在以下情况需要询问或明确风险：
+也不得：
 
-- 候选库语义冲突且任务存在关键歧义；
-- 用户要求的知识库未登记；
-- QMind Skill 无法访问目标知识库；
-- Windchill 版本会实质改变实现且无法从项目/上下文确定；
-- 检索结果不足以验证关键产品事实；
-- 当前事实需要 API Lookup、Compile 或 Runtime Verification 才能进一步确认。
+```text
+看了 Golden
+→ 就把 API Supported 状态当成已验证
+```
 
-如果用户要求依据、正在 Code Review，或者来源本身会影响结论，可以简要写：
+---
+
+# 8. Failure and Degradation
+
+## No matching QMind
+
+如果没有匹配知识库：
+
+- 不随意选无关库；
+- 可以继续使用 Rules / Golden / Project Context；
+- Product Fact 无法证明时标记 UNVERIFIED。
+
+## No permission
+
+只使用 Registry 定义的 fallback。
+
+不要自动切换无关知识库。
+
+## QMind unavailable
+
+- 不模拟检索；
+- 不编造官方资料；
+- Pattern 问题仍可使用 Golden；
+- Exact API 可使用 API Lookup；
+- Product / Framework Fact 保持 UNVERIFIED。
+
+## Conflict with Project Code
+
+先判断：
+
+- Project exception；
+- Version difference；
+- XWorks difference；
+- Technical debt；
+- Outdated knowledge；
+- Product Fact vs Engineering Preference。
+
+不得默认复制当前代码。
+
+---
+
+# 9. User-visible Result
+
+正常用户应该看到：
+
+```text
+问题
+    ↓
+直接结论 / 方案 / 代码
+```
+
+而不是：
+
+```text
+问题
+    ↓
+我先调用 QMind
+    ↓
+我先读取 Registry
+    ↓
+我查到一个文档
+    ↓
+我再看看 Golden
+    ↓
+最终答案
+```
+
+如果需要可追溯性，最终答案中可以简洁说明：
 
 ```text
 依据：PTC Windchill 13.1.2.0 Customization Guide
 ```
 
-或：
+普通开发任务不要求机械附带：
 
 ```text
-知识来源：ptc-windchill-dev-general（QMind）
+知识来源：ptc-xxx
 ```
 
-普通回答不要求机械追加该行。
-
-不要输出 UUID，除非用户正在诊断路由问题。
-
-如果未成功调用 QMind，不得声称：
-
-> 已参考企业 QMind。
+用户没有必要知道内部 Notebook ID 或 Tool 调用顺序。
 
 ---
 
-# 7. 失败与降级策略
-
-## 找不到匹配知识库
-
-- 不要随意选择一个库；
-- 通用问题可基于 Rules、Golden、项目上下文和模型能力继续；
-- 涉及 Windchill 专有产品行为时明确说明企业知识库未覆盖或未验证；
-- 如果精确 API Metadata 可通过 API Lookup 验证，应转向 API Lookup，而不是把 QMind 缺失当成整个任务无法继续。
-
-## 知识库无权限
-
-- 不自动换到无关知识库；
-- 仅尝试注册表明确配置的 fallback；
-- 如果权限问题影响最终答案，应简要说明目标知识源当前不可用。
-
-## QMind Skill 不可用
-
-- 不模拟 QMind 检索；
-- 不编造官方资料内容；
-- 风险可控时可基于 Rules、Golden、当前代码和模型知识继续；
-- 可以由目标版本 Javadoc / API Lookup 独立确认的 API Metadata，应使用 API Lookup；
-- 关键 Framework / Product Fact 保持 `UNVERIFIED`，直到获得可验证依据。
-
-## QMind 与当前项目实现冲突
-
-先判断冲突属于：
-
-- 团队规范冲突；
-- Windchill 版本差异；
-- XWorks/项目框架约束；
-- 历史技术债；
-- QMind 内容过时或适用范围不同；
-- Product Fact 与 Engineering Preference 被混淆。
-
-不得默认复制当前代码。
-
-也不得默认认为 QMind 一定适用于当前版本。
-
----
-
-# 8. 扩展原则
+# 10. Extension Principle
 
 新增 QMind 时优先只修改：
 
@@ -648,15 +769,13 @@ Agent 自主路由
 references/qmind-registry.md
 ```
 
-不要为了新增一个知识库修改 Router 算法。
+不要为了增加一个 Knowledge Base 修改 Router 算法。
 
-知识库名称、ID、关键词、适用范围、版本、authority、status、fallback 等元数据全部维护在注册表中。
+只有新增全局行为时才修改本文件，例如：
 
-只有新增全局路由行为时才修改 `SKILL.md`，例如：
-
-- 新产品 Codebeamer；
-- 新的跨库组合策略；
-- 新的权威级别；
-- 新的安全/合规路由要求；
-- 新的 Evidence Routing 原则；
-- 新的用户可见编排策略。
+- 新 Product；
+- 新的 Evidence Type；
+- 新 Authority Level；
+- 新 Security Requirement；
+- 新 Evidence Handoff 规则；
+- 新 User-visible Orchestration Policy。
