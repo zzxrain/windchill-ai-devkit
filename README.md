@@ -7,7 +7,7 @@ Windchill AI DevKit 是面向公司内部 PTC Windchill 二次开发的 Qoder Pl
 当前版本：
 
 ```text
-0.5.0
+0.5.1
 ```
 
 ---
@@ -22,7 +22,8 @@ Windchill AI DevKit 主要解决：
 - Transaction、Access Control、Queue、Listener 等高风险场景实现不一致；
 - 不同项目的 XWorks、Windchill Version、Java Version 和架构差异；
 - 生成代码与真实 Windchill Runtime Verification 混淆；
-- 企业 Windchill 开发经验难以稳定提供给 AI Agent。
+- 企业 Windchill 开发经验难以稳定提供给 AI Agent；
+- 普通开发人员需要显式知道 Golden / QMind / API Lookup 才能正确使用 DevKit。
 
 目标不是让 AI “记住全部 Windchill”，而是建立：
 
@@ -40,6 +41,8 @@ Project Context
 Real Verification
 ```
 
+并让这些能力由 Agent 根据自然开发任务自主编排，而不是要求用户手工指定内部工具。
+
 ---
 
 ## 2. Architecture
@@ -50,6 +53,11 @@ Real Verification
                              ▼
                          AGENTS.md
                              │
+                             ▼
+                    AI Coding Agent
+                             │
+                Autonomous Evidence Routing
+                             │
           ┌──────────────────┼──────────────────┐
           │                  │                  │
           ▼                  ▼                  ▼
@@ -59,9 +67,6 @@ Real Verification
                              │
                              ▼
                   Windchill API Lookup
-                             │
-                             ▼
-                       AI Coding Agent
                              │
                              ▼
                    Build / Test / Review
@@ -76,8 +81,8 @@ Real Verification
 |---|---|
 | Rules | 定义 Agent 必须 / 不得如何开发 |
 | QMind Router | 获取 Windchill / XWorks 产品和企业知识 |
-| Golden Reference | 提供候选或批准的推荐实现模式 |
-| API Lookup | 精确验证目标版本 PTC Java API |
+| Golden Reference | 提供 Candidate / Approved 推荐实现模式 |
+| API Lookup | 精确验证目标版本 PTC Java API Metadata |
 | AGENTS.md | 描述当前项目事实、环境和项目例外 |
 | Project Code | 提供当前架构和兼容性上下文 |
 | Build / Test | 验证代码级结果 |
@@ -105,25 +110,49 @@ Real Verification
 
 ### Product Facts
 
-判断以下事实时：
+产品事实必须进一步区分事实类型。
 
-- PTC Class 是否存在；
+#### Exact API Metadata
+
+例如：
+
+- Class 是否存在；
 - Method Signature；
+- Return Type；
+- Parameters；
+- Throws；
 - Supported；
 - Extendable；
-- Deprecated；
-- Extension Point；
-- Windchill 产品行为；
+- Deprecated。
 
-优先依据：
+优先：
 
-1. 目标版本 PTC Javadoc / 官方资料；
-2. 企业审核 QMind；
-3. 与目标版本匹配的 Golden Reference；
-4. 当前项目已验证实现；
-5. 模型知识。
+```text
+Target-version PTC Javadoc
+/
+Windchill API Lookup
+```
 
-不得根据命名规律猜测 PTC API。
+#### Framework / Product Behavior
+
+例如：
+
+- Validation Phase；
+- Event 生命周期；
+- Wizard 客户端交互；
+- Workflow 行为；
+- 配置机制；
+- 官方扩展点语义。
+
+优先：
+
+```text
+Target-version PTC Official Documentation
+/
+Enterprise-reviewed QMind
+```
+
+Golden Reference 可以提供实现模式和产品事实线索，但不能自动替代精确 API 或产品行为验证。
 
 ---
 
@@ -166,6 +195,10 @@ windchill-ai-devkit/
 ├── templates/
 │   └── AGENTS.md
 │
+├── scripts/
+│   └── package-plugin.sh
+│
+├── PACKAGING.md
 ├── .gitmodules
 ├── mcp.json
 ├── .gitignore
@@ -180,7 +213,7 @@ windchill-ai-devkit/
 
 | Rule | Scope |
 |---|---|
-| `00-core-development-rules.md` | 全局基础规则 |
+| `00-core-development-rules.md` | 全局基础规则、证据编排与验证边界 |
 | `10-java.md` | Java 工程边界 |
 | `20-windchill-api.md` | PTC API 使用和验证 |
 | `30-persistence-query-transaction.md` | Persistence / Query / Transaction |
@@ -231,7 +264,7 @@ templates/AGENTS.md
 
 XWorks 是可选项目框架，不是所有 Windchill 项目的默认技术栈。
 
-项目必须明确：
+项目应明确：
 
 ```text
 XWorks Enabled: true
@@ -269,6 +302,8 @@ XWorks Enabled: true
 
 和对应 XWorks Golden Reference 使用。
 
+跨 Framework 的概念可以作为设计线索，但不能自动证明存在等价 PTC Class、Method、Status 或 Hook。
+
 ---
 
 ## 8. QMind Enterprise Router
@@ -285,7 +320,17 @@ QMind Router 用于：
 2. 选择匹配的 QMind Knowledge Base；
 3. 构造针对当前事实缺口的 Query；
 4. 获取 Windchill / XWorks 产品知识；
-5. 判断证据是否足以支持实现。
+5. 判断证据是否足以支持当前结论。
+
+0.5.1 起，用户无需显式要求：
+
+```text
+查询 QMind
+查询 PTC Guide
+选择某个知识库
+```
+
+Agent 应根据任务自主判断是否需要检索。
 
 QMind 不用于替代：
 
@@ -294,6 +339,8 @@ Rules
 Golden Reference
 API Lookup
 Project Context
+Compile Verification
+Runtime Verification
 ```
 
 ---
@@ -302,7 +349,7 @@ Project Context
 
 Golden Reference 回答：
 
-> 同类 Windchill 定制，我们认可的实现模式通常怎么写？
+> 同类 Windchill 定制，我们认可或候选的实现模式通常怎么写？
 
 企业 Golden Reference Repository：
 
@@ -324,7 +371,15 @@ Git Submodule
 
 Golden Repository 与 DevKit 独立维护。
 
-DevKit 固定 Golden Repository 的一个明确 Commit SHA，而不是运行时自动跟随最新 `main`。
+DevKit 固定 Golden Repository 的明确 Commit SHA，而不是 Runtime 自动跟随 `main`。
+
+0.5.1 起，用户无需在 Prompt 中显式写：
+
+```text
+请查询 Golden Reference
+```
+
+Agent 应根据任务是否需要实现模式，自主选择最小充分 Reference。
 
 ---
 
@@ -364,7 +419,7 @@ branch = main
 
 ## 11. Golden Reference Status
 
-当前 Golden Corpus 主要包含：
+当前 Golden Corpus：
 
 ```text
 62 Candidate References
@@ -390,6 +445,7 @@ Candidate 可以用于：
 
 ```text
 企业最终批准实现
+目标项目 Compile Verified
 目标项目 Runtime Verified
 ```
 
@@ -397,33 +453,107 @@ Candidate 可以用于：
 
 ## 12. Golden Reference Selection
 
-推荐 Agent Workflow：
+推荐内部 Agent Workflow：
 
 ```text
-Read Project AGENTS.md
+Read Project Context
         ↓
 Identify Task Domain
         ↓
-Read Golden CATALOG.md
-        ↓
-Select Module
-        ↓
-Select 1–3 References
-        ↓
-Read reference.md + src/*
-        ↓
+Need Implementation Pattern?
+        │
+        └── Read Golden CATALOG
+                ↓
+          Select Minimum Sufficient Reference
+                ↓
+          Read reference.md + required src/*
+                ↓
 Apply Rules
         ↓
-Verify exact PTC API if needed
+Verify Product / API Facts if needed
         ↓
 Adapt to Current Project
 ```
+
+如果 1 个核心 Reference 已足够，就只使用 1 个。
+
+默认最多选择 1～3 个最小充分 Reference。
 
 不要一次性加载整个 Golden Repository。
 
 ---
 
-## 13. Golden Git Authentication
+## 13. Autonomous Evidence Orchestration
+
+0.5.1 的主要行为变化是：
+
+```text
+用户自然描述 Windchill 开发任务
+        ↓
+Agent 判断任务和风险
+        ↓
+按需选择证据
+        ↓
+直接完成任务
+```
+
+用户不需要知道 DevKit 内部组件名。
+
+内部职责：
+
+```text
+Project Fact
+→ AGENTS.md / Project Code / ADR
+
+Development Guardrail
+→ Rules
+
+Implementation Pattern
+→ Golden Reference
+
+Framework / Product Behavior
+→ QMind / Official Documentation
+
+Exact API Metadata
+→ Javadoc / API Lookup
+
+Compilation
+→ Build
+
+Actual Product Behavior
+→ Runtime Verification
+```
+
+Agent 不应为了展示能力而机械调用所有组件。
+
+---
+
+## 14. Silent Orchestration
+
+Rules、Golden Reference、QMind 和 API Lookup 默认属于 Agent 内部能力。
+
+常规用户回答中，不应连续播报：
+
+```text
+我先加载 Skill
+我先读取 Registry
+我选择某个 QMind
+我再读取 Golden CATALOG
+```
+
+应优先给用户：
+
+- 结论；
+- 实现方案；
+- 必要代码；
+- 风险；
+- 未验证项。
+
+用户要求依据、Code Review、证据冲突或关键事实未确认时，可以简要说明来源。
+
+---
+
+## 15. Golden Git Authentication
 
 Golden Repository 可以要求企业认证。
 
@@ -459,29 +589,20 @@ SSH Agent
 
 负责。
 
-认证只发生在：
-
-```text
-DevKit Source Maintenance
-Build
-Release
-CI
-```
-
-普通开发人员安装最终 Plugin ZIP 时，不需要 Golden Repository 的 Git 权限。
+普通开发人员安装最终 Plugin ZIP 时，不需要 Golden Repository Git 权限。
 
 ---
 
-## 14. Clone DevKit Source
+## 16. Clone DevKit Source
 
-DevKit 维护人员需要完整源码时，推荐：
+DevKit 维护人员需要完整源码时：
 
 ```bash
 git clone --recurse-submodules \
   <windchill-ai-devkit-repository-url>
 ```
 
-如果已经完成普通 Clone：
+已有普通 Clone：
 
 ```bash
 git submodule update --init --recursive
@@ -493,27 +614,14 @@ git submodule update --init --recursive
 git submodule status
 ```
 
-应看到：
-
-```text
-<golden-sha> skills/windchill-golden-reference
-```
-
 ---
 
-## 15. Update Golden Baseline
+## 17. Update Golden Baseline
 
-Golden Repository 更新以后，不会自动改变已发布 DevKit。
-
-需要显式更新：
+更新 Golden：
 
 ```bash
 git -C skills/windchill-golden-reference fetch origin
-```
-
-然后：
-
-```bash
 git -C skills/windchill-golden-reference checkout <approved-golden-sha>
 ```
 
@@ -523,11 +631,11 @@ git -C skills/windchill-golden-reference checkout <approved-golden-sha>
 git diff --submodule=log
 ```
 
-再由 DevKit 提交新的 gitlink SHA。
+然后由 DevKit 提交新的 gitlink SHA。
 
 ---
 
-## 16. Windchill API Lookup
+## 18. Windchill API Lookup
 
 API Lookup 位于：
 
@@ -554,12 +662,13 @@ tools/windchill-api-lookup
 
 ```text
 Feature Complete
-SIT Pending
+Standalone Distribution Pending
+Full MCP SIT Pending
 ```
 
 ---
 
-## 17. Windchill Version
+## 19. Windchill Version
 
 API Lookup 当前将 Windchill Version 作为精确 Version Key。
 
@@ -584,18 +693,13 @@ API Lookup 当前将 Windchill Version 作为精确 Version Key。
 2027.1.0.0
 ```
 
-项目应尽量填写实际完整版本，例如：
-
-```text
-13.1.2.0
-2027.0.0.0
-```
+项目应尽量填写实际完整版本。
 
 不进行跨版本自动 fallback。
 
 ---
 
-## 18. Javadoc Configuration
+## 20. Javadoc Configuration
 
 项目通常声明：
 
@@ -628,11 +732,15 @@ customer-project/
 
 Windchill Version 不得从 Javadoc ZIP 文件名推断。
 
+PTC Javadoc ZIP 不随 DevKit Plugin 分发。
+
 ---
 
-## 19. API Lookup Local Environment
+## 21. API Lookup Local Environment
 
-Python 要求：
+0.5.1 的 API Lookup Runtime 仍为独立 Python Runtime。
+
+要求：
 
 ```text
 Python >= 3.11
@@ -649,16 +757,12 @@ Python >= 3.11
 ```bash
 python3 -m venv ~/.venvs/windchill-api-lookup
 source ~/.venvs/windchill-api-lookup/bin/activate
-```
 
-安装：
-
-```bash
 cd tools/windchill-api-lookup
 python -m pip install -e '.[dev]'
 ```
 
-注意：
+当前：
 
 ```text
 ~/.venvs/windchill-api-lookup
@@ -666,17 +770,17 @@ python -m pip install -e '.[dev]'
 
 保存 Python Runtime / Dependencies。
 
-而：
-
 ```text
 ~/.windchill-ai
 ```
 
 保存 API Lookup Data / Cache / Index。
 
+Standalone Binary Distribution 计划放到后续版本实现，不属于 0.5.1 范围。
+
 ---
 
-## 20. Javadoc Parser Baseline
+## 22. Javadoc Parser Baseline
 
 当前真实验证基线：
 
@@ -697,129 +801,82 @@ Failed Pages: 0
 
 ---
 
-## 21. Recommended Agent Workflow
+## 23. Verification Policy
 
-Windchill Coding Task 推荐流程：
+必须区分：
 
 ```text
-Read Project AGENTS.md
-        ↓
-Understand Existing Code
-        ↓
-Apply Enterprise Rules
-        ↓
-Check Project ADR / Exception
-        ↓
-Need Product Knowledge?
-        └── QMind
-        ↓
-Need Implementation Pattern?
-        └── Golden Reference
-        ↓
-Need Exact PTC API?
-        │
-        ├── ensure_javadoc_index
-        └── API Lookup
-        ↓
-Implement Minimum Necessary Change
-        ↓
-Build / Test / Static Check
-        ↓
-Review Git Diff
-        ↓
-Identify Runtime Verification
+Implementation Pattern Evidence
+API Metadata Verification
+Compile Verification
+Runtime Verification
 ```
 
-Agent 不应为了展示 Tool 能力而调用全部知识源。
+例如：
 
-只使用完成当前任务真正需要的最小集合。
+```text
+PTC Guide / Golden Reference
+→ 可以证明实现模式有依据
 
----
+Target-version Javadoc / API Lookup
+→ 可以证明 API Metadata
 
-## 22. Verification Policy
+Target Build / Classpath
+→ 可以证明 Compile Verification
+
+Actual Windchill Runtime
+→ 才能证明 Runtime Verification
+```
 
 Agent 只能声明实际完成的验证。
 
-例如只执行：
-
-```text
-Compilation successful
-```
-
-不得描述为：
-
-```text
-Windchill Runtime verified
-```
-
-没有真实 Windchill Runtime 时，应明确说明：
+没有真实 Windchill Runtime 时，应明确：
 
 ```text
 待 Windchill 环境验证
 ```
 
-尤其适用于：
-
-- Listener；
-- Event；
-- Queue；
-- Service Startup；
-- Access Control；
-- Principal / Session Context；
-- Workflow；
-- JCA Runtime；
-- Transaction Rollback；
-- XCONF；
-- Cluster；
-- Performance / Concurrency。
-
 ---
 
-## 23. Plugin Packaging Boundary
+## 24. Plugin Packaging
 
-Git Submodule 在 DevKit Repository 中只保存：
+正式 Packaging 定义在：
 
 ```text
-Repository URL
-+
-Commit Pointer
+PACKAGING.md
 ```
 
-普通：
+构建：
 
 ```bash
-git archive
+./scripts/package-plugin.sh
 ```
 
-不会自动把 Submodule 的真实内容展开进 ZIP。
-
-正式 Plugin Packaging 必须：
+Packaging workflow 会：
 
 ```text
-Checkout DevKit
+Verify Clean Git State
         ↓
-Authenticate Golden Git
+Verify Golden gitlink
         ↓
-Initialize Submodule
+Materialize Golden
         ↓
-Materialize Golden Files
+Assemble Plugin
         ↓
-Build Plugin Staging Directory
+Validate Required Files
         ↓
-Build Plugin ZIP
+Run Qoder Validation When Available
         ↓
-Verify ZIP Content
+Create ZIP
+        ↓
+Validate ZIP
+        ↓
+Generate SHA-256
 ```
 
-最终 Plugin ZIP 必须实际包含：
+最终 Plugin ZIP 包含 Golden Reference 本地文件。
 
-```text
-skills/windchill-golden-reference/SKILL.md
-skills/windchill-golden-reference/CATALOG.md
-skills/windchill-golden-reference/references/*
-```
-
-普通开发人员安装最终 Plugin：
+普通 Plugin 用户：
 
 ```text
 不需要 Codeup Account
@@ -827,11 +884,19 @@ skills/windchill-golden-reference/references/*
 不需要执行 git submodule
 ```
 
-Qoder Runtime 直接读取 Plugin 中的本地 Golden Reference 文件。
+需要注意：
+
+```text
+Plugin ZIP 自包含 Rules / Skills / Golden
+≠
+API Lookup Runtime 已自包含
+```
+
+0.5.1 的 `windchill-api-lookup` 仍为外部 Runtime Dependency。
 
 ---
 
-## 24. Repository Security
+## 25. Repository Security
 
 禁止提交：
 
@@ -852,44 +917,89 @@ Golden Reference 建议维护在公司批准的 Authenticated Private Git Reposi
 
 ---
 
-## 25. Current Status
+## 26. Current Status
 
 ```text
-Rules                       Ready
-Project AGENTS              Ready
-QMind Router                Ready
-API Lookup                  Feature Complete / SIT Pending
-Javadoc 13.1.2 Baseline     Verified
-Golden Corpus               62 Candidates
-Golden Skill                Ready
-Golden DevKit Integration   Ready in 0.5.0
-Plugin Packaging            Next
-Acceptance Benchmark        Pending
-Full SIT                    Pending
-Internal Pilot              Pending
+Rules                          Ready
+Project AGENTS                 Ready
+QMind Router                   Ready
+Golden Corpus                  62 Candidates
+Golden Skill                   Ready
+Golden DevKit Integration      Ready
+Javadoc 13.1.2 Baseline        Verified
+API Lookup                     Feature Complete
+API Lookup Distribution        External Python Runtime
+Plugin Packaging Workflow      Validated
+Plugin ZIP Install             Validated on 0.5.0 baseline
+Smoke / Regression             Complete
+Autonomous Orchestration       Ready in 0.5.1
+Natural Prompt Acceptance      Pending
+Full MCP / Runtime SIT         Pending
+Internal Pilot                 Pending
 ```
 
 ---
 
-## 26. Next Steps
+## 27. 0.5.1 Acceptance
 
-Golden Reference 接入完成后：
+0.5.1 重点验证：
 
 ```text
-Plugin Packaging
+Natural User Prompt
         ↓
-Acceptance Benchmark
+Autonomous Trigger
         ↓
-Full SIT
+Minimal Evidence Selection
+        ↓
+Silent Orchestration
+        ↓
+Correct Evidence Routing
+        ↓
+Technically Correct Result
+```
+
+Acceptance Prompt 不应显式要求：
+
+```text
+Rules
+Golden Reference
+QMind
+Customization Guide
+API Lookup
+```
+
+因为测试目标正是验证 Agent 是否可以自主使用这些能力。
+
+---
+
+## 28. Next Steps
+
+```text
+0.5.1 Natural Prompt Acceptance
+        ↓
+0.5.1 Release Baseline
+        ↓
+0.6.0 API Lookup Standalone Distribution
+        ↓
+Full MCP / Runtime SIT
         ↓
 Internal Pilot
 ```
 
-在 SIT 之前暂不继续扩展 API Lookup MCP。
+0.6.0 主要目标：
+
+```text
+macOS ARM64 standalone executable
+Windows x64 standalone executable
+Python-free end-user installation
+Plugin-local MCP startup
+Javadoc indexing E2E
+Qoder MCP E2E
+```
 
 ---
 
-## 27. Core Principle
+## 29. Core Principle
 
 ```text
 Rules
@@ -902,21 +1012,24 @@ Golden Reference
 告诉 Agent：同类实现通常怎么写。
 
 API Lookup
-告诉 Agent：这个 PTC API 是否真实存在。
+告诉 Agent：目标版本 PTC API Metadata 是什么。
 
 AGENTS.md
 告诉 Agent：当前项目实际是什么。
 
-Build / Runtime Verification
-告诉我们：最终结果是否真的能够工作。
+Build
+告诉我们：代码能否在目标依赖中成立。
+
+Runtime Verification
+告诉我们：真实 Windchill 行为是否符合预期。
 ```
 
 最终目标是让 Windchill AI Coding：
 
 ```text
-更准确
-更一致
-更可验证
-更可维护
-更适合企业项目
+用户自然提出开发问题
+        ↓
+Agent 自主寻找必要证据
+        ↓
+输出准确、可验证、可维护的实现
 ```

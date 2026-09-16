@@ -12,6 +12,18 @@ Pinned Golden Reference Submodule
 Self-contained Qoder Plugin ZIP
 ```
 
+这里的 `Self-contained` 指：
+
+```text
+Rules
+Skills
+Golden Reference
+Project Templates
+Plugin Metadata
+```
+
+不代表当前版本已经内置 API Lookup Runtime。
+
 普通开发人员安装最终 ZIP 时，不需要访问 Golden Reference Git Repository。
 
 ---
@@ -71,6 +83,7 @@ Plugin ZIP 内不包含：
 ```text
 .git/
 .gitmodules
+.gitignore
 .idea/
 Git Credential
 Codeup Credential
@@ -254,6 +267,14 @@ Validate ZIP Structure
 Generate SHA-256
 ```
 
+Plugin Version 直接读取：
+
+```text
+.qoder-plugin/plugin.json
+```
+
+因此 Packaging 文档和脚本不需要针对每个 Patch Version 修改文件名逻辑。
+
 ---
 
 ## 7. Output
@@ -266,12 +287,12 @@ dist/
 └── windchill-ai-devkit-<version>.zip.sha256
 ```
 
-例如：
+例如 0.5.1：
 
 ```text
 dist/
-├── windchill-ai-devkit-0.5.0.zip
-└── windchill-ai-devkit-0.5.0.zip.sha256
+├── windchill-ai-devkit-0.5.1.zip
+└── windchill-ai-devkit-0.5.1.zip.sha256
 ```
 
 `dist/` 和 `build/` 不提交到 Git Repository。
@@ -280,10 +301,16 @@ dist/
 
 ## 8. ZIP Verification
 
-检查：
+首先读取当前版本：
 
 ```bash
-unzip -Z1 dist/windchill-ai-devkit-0.5.0.zip
+PLUGIN_VERSION="$(awk -F'"' '/"version"[[:space:]]*:/ { print $4; exit }' .qoder-plugin/plugin.json)"
+```
+
+查看 ZIP：
+
+```bash
+unzip -Z1 "dist/windchill-ai-devkit-${PLUGIN_VERSION}.zip"
 ```
 
 必须能够看到：
@@ -295,10 +322,10 @@ skills/windchill-golden-reference/SKILL.md
 skills/windchill-golden-reference/CATALOG.md
 ```
 
-Golden Reference 数量可以检查：
+检查 Golden Reference 数量：
 
 ```bash
-unzip -Z1 dist/windchill-ai-devkit-0.5.0.zip \
+unzip -Z1 "dist/windchill-ai-devkit-${PLUGIN_VERSION}.zip" \
   | grep 'skills/windchill-golden-reference/references/.*/reference.md$' \
   | wc -l
 ```
@@ -325,7 +352,7 @@ qoder
 qoder plugins validate build/plugin-package/windchill-ai-devkit
 ```
 
-如果中国版 CLI 命令为：
+如果中国版 CLI 为：
 
 ```text
 qodercn
@@ -339,13 +366,27 @@ qodercn plugins validate build/plugin-package/windchill-ai-devkit
 
 Packaging Script 会自动尝试执行上述 Validation。
 
+如果两者都不存在：
+
+```text
+Qoder validation skipped
+```
+
+必须理解为：
+
+```text
+Packaging completed
+≠
+Qoder CLI validation completed
+```
+
 ---
 
 ## 10. Qoder Upload Test
 
 最终发布前应使用真实 ZIP 做安装测试。
 
-在 Qoder 中进入：
+在 Qoder 中：
 
 ```text
 Extensions
@@ -369,10 +410,20 @@ Plugin Version
 Rules
 QMind Skill
 Golden Reference Skill
-MCP Server
+MCP Server Configuration
 ```
 
 均能正确发现。
+
+注意：
+
+```text
+MCP Server Configuration 可发现
+≠
+API Lookup Runtime 已成功启动
+```
+
+API Lookup Runtime 需要单独 SIT。
 
 ---
 
@@ -412,7 +463,7 @@ Golden Git Repository
 
 ## 12. API Lookup Runtime Dependency
 
-当前 DevKit `0.5.0` 的：
+当前 0.5.x 的：
 
 ```text
 windchill-api-lookup
@@ -432,15 +483,19 @@ mcp.json
 windchill-api-lookup serve
 ```
 
-因此 Release Machine 能成功构建 Plugin ZIP，不代表开发人员机器已经具备 API Lookup Runtime。
-
-当前内部 Pilot 前提：
+因此：
 
 ```text
-~/.venvs/windchill-api-lookup
+Plugin ZIP 成功构建
 ```
 
-或其他已批准 Python Runtime 中已经安装：
+不代表：
+
+```text
+开发人员机器已经具备 API Lookup Runtime
+```
+
+当前内部测试前提是某个已批准 Python Runtime 中已经安装：
 
 ```text
 windchill-api-lookup
@@ -448,17 +503,31 @@ windchill-api-lookup
 
 并确保该命令能够被 Qoder MCP Process 找到。
 
-这一依赖将在后续 SIT 中验证。
+推荐开发环境：
 
-未来如果采用：
+```text
+~/.venvs/windchill-api-lookup
+```
+
+这一边界属于当前版本已知限制。
+
+计划在后续版本评估：
 
 ```text
 Standalone Binary
 ```
 
-则可以进一步将 API Lookup Runtime 打入 Plugin `bin/`。
+目标是进一步形成：
 
-当前 Packaging 不提前引入该复杂度。
+```text
+Plugin-local API Lookup Runtime
++
+Python-free End-user Installation
+```
+
+PTC Javadoc ZIP 不随 Plugin 分发。
+
+项目仍负责提供与目标 Windchill Version 匹配、合法获得的 Javadoc ZIP。
 
 ---
 
@@ -487,12 +556,50 @@ Update DevKit gitlink
         ↓
 Build New Plugin ZIP
         ↓
+Install / Acceptance Test
+        ↓
 Release
 ```
 
 ---
 
-## 14. Packaging Principle
+## 14. Release Candidate and Final Release
+
+建议先建立明确的 Acceptance Baseline：
+
+```text
+Committed DevKit
++
+Committed Golden
++
+Plugin Version
+        ↓
+Package
+        ↓
+Install
+        ↓
+Acceptance
+```
+
+Acceptance 未完成前，不应声称：
+
+```text
+0.5.1 Acceptance Passed
+Full SIT Passed
+API Lookup Runtime Validated
+```
+
+Acceptance 通过后，再记录最终：
+
+```text
+DevKit SHA
+Golden SHA
+ZIP SHA-256
+```
+
+---
+
+## 15. Packaging Principle
 
 Plugin Packaging 的目标不是简单：
 
@@ -507,4 +614,15 @@ zip repository
 +
 明确的 Golden Commit
 构建一个自包含、可验证、可复现的 Qoder Plugin Release。
+```
+
+这里的自包含边界必须明确：
+
+```text
+0.5.x
+Rules / Skills / Golden
+→ Self-contained in Plugin ZIP
+
+API Lookup Runtime
+→ External Runtime Dependency
 ```
