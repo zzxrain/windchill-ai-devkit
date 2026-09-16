@@ -17,5 +17,6 @@
   "skills": [
     "./skills/qmind-enterprise-router",
     "./skills/windchill-golden-reference"
-  ]
+  ],
+  "hooks": "./hooks/hooks.json"
 }

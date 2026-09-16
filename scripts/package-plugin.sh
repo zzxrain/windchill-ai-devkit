@@ -131,6 +131,8 @@ git archive \
   rules \
   skills/qmind-enterprise-router \
   templates \
+  hooks \
+  bin \
   README.md |
   tar -xf - -C "${STAGE_DIR}"
 
@@ -150,6 +152,10 @@ REQUIRED_FILES=(
   "skills/qmind-enterprise-router/SKILL.md"
   "skills/windchill-golden-reference/SKILL.md"
   "skills/windchill-golden-reference/CATALOG.md"
+  "hooks/hooks.json"
+  "bin/qmind-retrieve-guard"
+  "bin/qmind-retrieve-guard.cmd"
+  "bin/qmind-retrieve-guard.ps1"
 )
 
 for required_file in "${REQUIRED_FILES[@]}"; do
@@ -241,6 +247,22 @@ fi
 
 if ! grep -Fxq 'skills/windchill-golden-reference/CATALOG.md' <<<"${ZIP_ENTRIES}"; then
   fail "ZIP does not contain Golden Reference CATALOG.md."
+fi
+
+if ! grep -Fxq 'hooks/hooks.json' <<<"${ZIP_ENTRIES}"; then
+  fail "ZIP does not contain hooks/hooks.json."
+fi
+
+if ! grep -Fxq 'bin/qmind-retrieve-guard' <<<"${ZIP_ENTRIES}"; then
+  fail "ZIP does not contain the POSIX QMind retrieve guard."
+fi
+
+if ! grep -Fxq 'bin/qmind-retrieve-guard.cmd' <<<"${ZIP_ENTRIES}"; then
+  fail "ZIP does not contain the Windows QMind retrieve guard wrapper."
+fi
+
+if ! grep -Fxq 'bin/qmind-retrieve-guard.ps1' <<<"${ZIP_ENTRIES}"; then
+  fail "ZIP does not contain the Windows QMind retrieve guard implementation."
 fi
 
 if grep -Fxq 'mcp.json' <<<"${ZIP_ENTRIES}"; then

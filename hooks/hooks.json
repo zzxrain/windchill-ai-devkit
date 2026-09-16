@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": ".*retrieve.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "qmind-retrieve-guard",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

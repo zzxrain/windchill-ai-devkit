@@ -1,0 +1,36 @@
+#!/bin/sh
+
+set -u
+
+INPUT="$(cat)"
+
+# This hook may be invoked for other tools whose names contain "retrieve".
+# Only guard the qoder-qmind MCP server.
+if ! printf '%s' "$INPUT" \
+  | grep -Eqi '"(server_name|tool_name)"[[:space:]]*:[[:space:]]*"[^"]*qoder-qmind[^"]*"'; then
+  exit 0
+fi
+
+# Confirm this is a retrieve operation.
+if ! printf '%s' "$INPUT" \
+  | grep -Eqi '"(tool_name|original_request_name)"[[:space:]]*:[[:space:]]*"[^"]*retrieve[^"]*"'; then
+  exit 0
+fi
+
+if ! printf '%s' "$INPUT" \
+  | grep -Eq '"notebookId"[[:space:]]*:[[:space:]]*"[^"]+"'; then
+  printf '%s\n' \
+    "QMind retrieve blocked by Windchill AI DevKit: notebookId is missing. Do not answer from model memory. Load qmind-enterprise-router, read references/qmind-registry.md, select the matching notebook, then retry retrieve with both notebookId and query." \
+    >&2
+  exit 2
+fi
+
+if ! printf '%s' "$INPUT" \
+  | grep -Eq '"query"[[:space:]]*:[[:space:]]*"[^"]+"'; then
+  printf '%s\n' \
+    "QMind retrieve blocked by Windchill AI DevKit: query is missing. Build a focused Product / Framework knowledge query, then retry retrieve with both notebookId and query." \
+    >&2
+  exit 2
+fi
+
+exit 0
