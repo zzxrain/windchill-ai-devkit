@@ -623,3 +623,284 @@ Framework A 的 warning
 ```
 
 这些结论都必须使用与其事实类型匹配的独立证据。
+
+---
+
+## 15. QMind Retrieve 调用必须经过 Router / Registry Preflight
+
+当 Internal Evidence Plan 判断某项结论需要：
+
+```text
+Product / Framework Behavior
+```
+
+并准备使用企业 QMind 时，Agent 不得直接绕过：
+
+```text
+qmind-enterprise-router
+```
+
+去调用底层 QMind `retrieve` Tool。
+
+### 15.1 强制调用顺序
+
+任何 QMind Retrieval 必须先完成：
+
+```text
+Need Product / Framework Evidence?
+        ↓
+QMind Router
+        ↓
+Read references/qmind-registry.md
+        ↓
+Select matching Registry Entry
+        ↓
+Resolve Registry.id
+        ↓
+Build focused query
+        ↓
+Parameter Preflight
+        ↓
+QMind retrieve
+```
+
+不得采用：
+
+```text
+用户问题
+        ↓
+模型直接构造 query
+        ↓
+retrieve
+```
+
+这种路径。
+
+### 15.2 当前 QMind Retrieve 最小参数
+
+Windchill AI DevKit 1.0.0 已通过实际 Qoder Runtime Parameter Validation 确认，当前 `retrieve` Tool 至少要求：
+
+```text
+notebookId
+query
+```
+
+因此在调用前必须确认：
+
+```text
+notebookId != empty
+query != empty
+```
+
+其中：
+
+```text
+notebookId = selected Registry entry.id
+```
+
+而：
+
+```text
+query = 针对当前 Product / Framework Knowledge Gap 构造的检索问题
+```
+
+禁止仅发送：
+
+```json
+{
+  "query": "..."
+}
+```
+
+也禁止仅发送：
+
+```json
+{
+  "notebookId": "..."
+}
+```
+
+不得自行使用未经 Runtime Contract 确认的：
+
+```text
+question
+notebook_id
+notebook_name
+```
+
+替代当前已确认的 Tool 参数。
+
+### 15.3 Registry 未解析完成时禁止调用
+
+如果 Agent 尚未：
+
+```text
+读取 Registry
+选择 Knowledge Base
+取得 Registry.id
+```
+
+则当前状态为：
+
+```text
+QMind Routing Incomplete
+```
+
+此时不得调用底层 `retrieve`。
+
+不得因为：
+
+- Tool 已经可见；
+- 用户问题包含 Windchill；
+- 模型大致知道应该查什么；
+- 上一次任务使用过某个 Notebook；
+
+就跳过 Registry Resolution。
+
+Notebook ID 必须来自当前路由选择的 Registry Entry，不得复用与当前任务无关的历史 Notebook ID。
+
+### 15.4 Parameter Validation Error 属于 Routing / Contract Failure
+
+如果 `retrieve` 返回：
+
+```text
+tool parameter validation failed
+```
+
+例如：
+
+```text
+required property 'notebookId'
+```
+
+或：
+
+```text
+required property 'query'
+```
+
+则：
+
+```text
+QMind Retrieval
+=
+未执行成功
+```
+
+不得把这种失败解释成：
+
+```text
+Knowledge Base 没有答案
+Evidence 已检索但为空
+QMind 已完成查询
+```
+
+如果缺少已确认参数：
+
+```text
+notebookId
+/
+query
+```
+
+Agent 应回到：
+
+```text
+Router
+→ Registry
+→ Parameter Preflight
+```
+
+补齐后最多重试一次。
+
+如果已经包含当前已确认的：
+
+```text
+notebookId + query
+```
+
+但 Runtime 又返回新的 Required Property Error，则停止自动猜测参数，并把该 Tool Contract 视为未完成验证。
+
+### 15.5 QMind 失败时必须 Fail Closed
+
+如果 Product / Framework Behavior 是当前结论的 Required Evidence，而 QMind / Official Documentation Retrieval 没有成功：
+
+```text
+Evidence Gap
+仍然存在
+```
+
+此时不得：
+
+```text
+QMind 调用失败
+        ↓
+退回模型记忆
+        ↓
+继续把 Product Fact 写成确定结论
+```
+
+正确降级为：
+
+```text
+已确认的 Rule / Golden Pattern
++
+Engineering Inference
++
+Product Fact = UNVERIFIED
+```
+
+如果缺失的 Product Fact 会决定方案是否正确，则应停止在 Pattern-level，而不是生成依赖该事实的确定性实现。
+
+例如 QMind Event Evidence 未成功时，不得自行声明：
+
+```text
+PRE_STORE 一定 vetoable
+POST_STORE 一定 non-vetoable
+POST_STORE 一定 transaction commit 后触发
+```
+
+这些结论必须等 Product / Framework Evidence 补齐后才能作为产品事实输出。
+
+### 15.6 QMind 成功不等于 Evidence Set Complete
+
+即使 QMind Retrieval 成功：
+
+```text
+QMind Search Completed
+≠
+Required Evidence Set Completed
+```
+
+如果任务还需要：
+
+```text
+Implementation Pattern
+```
+
+继续检查 Golden。
+
+如果任务还需要：
+
+```text
+Exact API Metadata
+```
+
+继续遵循 `20-windchill-api.md`。
+
+如果需要：
+
+```text
+Compile Verification
+Runtime Verification
+```
+
+仍必须由对应真实环境提供。
+
+QMind 只完成其实际覆盖的：
+
+```text
+Product / Framework Evidence
+```
+
+不得扩张其证明范围。
