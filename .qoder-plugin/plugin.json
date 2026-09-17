@@ -1,6 +1,6 @@
 {
   "name": "windchill-ai-devkit",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "displayName": "Windchill AI DevKit",
   "description": "Windchill 二次开发 AI 辅助开发规则、企业知识路由、Golden Reference 与项目上下文支持",
   "author": {
